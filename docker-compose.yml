@@ -1,0 +1,48 @@
+services:
+  api:
+    build:
+      context: ./backend
+    environment:
+      MINILOG_DATABASE_URL: sqlite:////data/minilog.db
+      MINILOG_PUBLIC_ORIGIN: ${MINILOG_PUBLIC_ORIGIN:-http://localhost:8080}
+      MINILOG_SECURE_COOKIES: ${MINILOG_SECURE_COOKIES:-false}
+      MINILOG_SETUP_TOKEN: ${MINILOG_SETUP_TOKEN:?Set MINILOG_SETUP_TOKEN}
+      MINILOG_TIME_ZONE: ${MINILOG_TIME_ZONE:-UTC}
+    expose:
+      - "8000"
+    volumes:
+      - minilog-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: ./frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${MINILOG_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  minilog-data:
+

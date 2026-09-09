@@ -1,0 +1,3 @@
+# Synchronize offline creations with idempotent cursor-based changes
+
+The PWA will queue newly created care records offline using client-generated identifiers, push mutations idempotently, and pull server changes from a monotonic cursor that includes deletion tombstones. While visible it will poll every five seconds, and it will also synchronize on launch, reconnection, and return to the foreground; no server-sent-event or WebSocket channel is required. Existing records require connectivity to edit or delete, and stale revisions are rejected rather than overwritten, limiting conflict complexity while keeping the most important logging action available during an outage.

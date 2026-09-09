@@ -1,0 +1,11 @@
+{
+  "name": "Minilog",
+  "short_name": "Minilog",
+  "description": "Private baby care logging for your household",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101318",
+  "theme_color": "#101318",
+  "icons": []
+}
+
