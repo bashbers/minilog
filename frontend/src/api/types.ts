@@ -11,6 +11,12 @@ export type Session = components["schemas"]["SessionOut"];
 export type SetupRequest = components["schemas"]["SetupRequest"];
 export type SetupStatus = components["schemas"]["SetupStatus"];
 export type SyncPage = components["schemas"]["SyncPage"];
+export type PiyoLogPreview = components["schemas"]["PiyoLogPreview"];
+export type ImportBatch = components["schemas"]["ImportBatchOut"];
+export type Invitation = components["schemas"]["InvitationOut"];
+export type InvitationAccept = components["schemas"]["InvitationAccept"];
+export type DeviceSession = components["schemas"]["DeviceSessionOut"];
+export type ImportedDailyNote = components["schemas"]["ImportedDailyNoteOut"];
 
 export type CareRecordCreate =
   | components["schemas"]["BreastfeedingCreate"]
@@ -24,4 +30,3 @@ export type CareRecordCreate =
   | components["schemas"]["NoteCreate"];
 
 export type TimelineRecord = CareRecord & { queued?: boolean };
-

@@ -102,6 +102,245 @@ export interface paths {
         get: operations["get_household_api_v1_household_get"];
         put?: never;
         post?: never;
+        /** Delete Household */
+        delete: operations["delete_household_api_v1_household_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Invitation */
+        post: operations["create_invitation_api_v1_invitations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Invitation */
+        post: operations["accept_invitation_api_v1_invitations_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/caregivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Caregivers */
+        get: operations["list_caregivers_api_v1_caregivers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/caregivers/{caregiver_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Caregiver */
+        delete: operations["remove_caregiver_api_v1_caregivers__caregiver_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Device Sessions */
+        get: operations["list_device_sessions_api_v1_sessions_devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/devices/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Device Session */
+        delete: operations["revoke_device_session_api_v1_sessions_devices__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change Password */
+        put: operations["change_password_api_v1_sessions_password_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/piyolog/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Import */
+        post: operations["preview_import_api_v1_imports_piyolog_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/piyolog/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Import */
+        post: operations["confirm_import_api_v1_imports_piyolog_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/piyolog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Imports */
+        get: operations["list_imports_api_v1_imports_piyolog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/piyolog/daily-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Imported Daily Notes */
+        get: operations["list_imported_daily_notes_api_v1_imports_piyolog_daily_notes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/piyolog/{batch_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Import Source */
+        delete: operations["delete_import_source_api_v1_imports_piyolog__batch_id__source_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exports/minilog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Minilog */
+        get: operations["export_minilog_api_v1_exports_minilog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exports/timeline.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Timeline Csv */
+        get: operations["export_timeline_csv_api_v1_exports_timeline_csv_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -137,7 +376,8 @@ export interface paths {
         /** Update Baby */
         put: operations["update_baby_api_v1_babies__baby_id__put"];
         post?: never;
-        delete?: never;
+        /** Delete Baby */
+        delete: operations["delete_baby_api_v1_babies__baby_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -232,6 +472,13 @@ export interface components {
             /** Due Date */
             due_date?: string | null;
         };
+        /** BabyDeleteRequest */
+        BabyDeleteRequest: {
+            /** Confirmation */
+            confirmation: string;
+            /** Export Acknowledged */
+            export_acknowledged: boolean;
+        };
         /** BabyOut */
         BabyOut: {
             /**
@@ -267,6 +514,40 @@ export interface components {
             birth_date: string;
             /** Due Date */
             due_date?: string | null;
+        };
+        /** Body_confirm_import_api_v1_imports_piyolog_confirm_post */
+        Body_confirm_import_api_v1_imports_piyolog_confirm_post: {
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /** Source Time Zone */
+            source_time_zone: string;
+            /** File */
+            file: string;
+            /**
+             * Retain Source
+             * @default true
+             */
+            retain_source: boolean;
+            /**
+             * Replace Modified
+             * @default false
+             */
+            replace_modified: boolean;
+        };
+        /** Body_preview_import_api_v1_imports_piyolog_preview_post */
+        Body_preview_import_api_v1_imports_piyolog_preview_post: {
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /** Source Time Zone */
+            source_time_zone: string;
+            /** File */
+            file: string;
         };
         /** Body_set_profile_picture_api_v1_babies__baby_id__profile_picture_put */
         Body_set_profile_picture_api_v1_babies__baby_id__profile_picture_put: {
@@ -431,6 +712,24 @@ export interface components {
          * @enum {string}
          */
         ClockFormat: "12h" | "24h";
+        /** DeviceSessionOut */
+        DeviceSessionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Device Name */
+            device_name: string | null;
+            /** Created At */
+            created_at: number;
+            /** Last Seen At */
+            last_seen_at: number;
+            /** Expires At */
+            expires_at: number;
+            /** Current */
+            current: boolean;
+        };
         /** DiaperChangeCreate */
         DiaperChangeCreate: {
             /** Id */
@@ -470,6 +769,11 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HouseholdDeleteRequest */
+        HouseholdDeleteRequest: {
+            /** Confirmation */
+            confirmation: string;
+        };
         /** HouseholdOut */
         HouseholdOut: {
             /**
@@ -485,6 +789,94 @@ export interface components {
             locale: string;
             clock_format: components["schemas"]["ClockFormat"];
             measurement_system: components["schemas"]["MeasurementSystem"];
+        };
+        /** ImportBatchOut */
+        ImportBatchOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Detected Locale */
+            detected_locale: string;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Status */
+            status: string;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Source Retained */
+            source_retained: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** ImportedDailyNoteOut */
+        ImportedDailyNoteOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Local Date
+             * Format: date
+             */
+            local_date: string;
+            /** Body */
+            body: string;
+            /** Source Author Text */
+            source_author_text: string | null;
+            /** Source Line */
+            source_line: number | null;
+        };
+        /** InvitationAccept */
+        InvitationAccept: {
+            /** Token */
+            token: string;
+            /** Username */
+            username: string;
+            /** Display Name */
+            display_name: string;
+            /** Password */
+            password: string;
+            /** Device Name */
+            device_name?: string | null;
+        };
+        /** InvitationCreate */
+        InvitationCreate: {
+            /** Expires In Hours */
+            expires_in_hours?: number | null;
+        };
+        /** InvitationOut */
+        InvitationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Token */
+            token: string;
+            /** Expires At */
+            expires_at: number;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -598,6 +990,43 @@ export interface components {
             record_type: "note";
             /** Body */
             body: string;
+        };
+        /** PasswordChange */
+        PasswordChange: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /** PiyoLogPreview */
+        PiyoLogPreview: {
+            /** Source Hash */
+            source_hash: string;
+            /** Duplicate Import Id */
+            duplicate_import_id?: string | null;
+            /**
+             * Detected Locale
+             * @enum {string}
+             */
+            detected_locale: "en" | "ja";
+            /** Date From */
+            date_from?: string | null;
+            /** Date To */
+            date_to?: string | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Conflicts */
+            conflicts?: {
+                [key: string]: number;
+            };
+            /** Unknown Lines */
+            unknown_lines: {
+                [key: string]: unknown;
+            }[];
+            /** Warnings */
+            warnings: string[];
         };
         /** PumpingCreate */
         PumpingCreate: {
@@ -904,6 +1333,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -967,6 +1397,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -991,6 +1422,523 @@ export interface operations {
             };
         };
     };
+    delete_household_api_v1_household_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HouseholdDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_invitation_api_v1_invitations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_invitation_api_v1_invitations_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_caregivers_api_v1_caregivers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaregiverOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_caregiver_api_v1_caregivers__caregiver_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                caregiver_id: string;
+            };
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_device_sessions_api_v1_sessions_devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_device_session_api_v1_sessions_devices__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_v1_sessions_password_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_import_api_v1_imports_piyolog_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_import_api_v1_imports_piyolog_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PiyoLogPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_import_api_v1_imports_piyolog_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_confirm_import_api_v1_imports_piyolog_confirm_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_imports_api_v1_imports_piyolog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_imported_daily_notes_api_v1_imports_piyolog_daily_notes_get: {
+        parameters: {
+            query: {
+                baby_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportedDailyNoteOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_import_source_api_v1_imports_piyolog__batch_id__source_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_minilog_api_v1_exports_minilog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_timeline_csv_api_v1_exports_timeline_csv_get: {
+        parameters: {
+            query: {
+                baby_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_babies_api_v1_babies_get: {
         parameters: {
             query?: never;
@@ -998,6 +1946,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -1100,6 +2049,44 @@ export interface operations {
             };
         };
     };
+    delete_baby_api_v1_babies__baby_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                baby_id: string;
+            };
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BabyDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_profile_picture_api_v1_babies__baby_id__profile_picture_get: {
         parameters: {
             query?: never;
@@ -1109,6 +2096,7 @@ export interface operations {
             };
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -1216,6 +2204,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -1288,6 +2277,7 @@ export interface operations {
             };
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;
@@ -1398,6 +2388,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 minilog_session?: string | null;
+                minilog_csrf?: string | null;
             };
         };
         requestBody?: never;

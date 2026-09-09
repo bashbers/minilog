@@ -108,9 +108,7 @@ def test_every_native_record_type_round_trips() -> None:
                 amount_value="2",
                 amount_unit="spoons",
             ),
-            record_payload(
-                baby_id, "sleep", ended_at="2026-09-09T13:00:00+02:00"
-            ),
+            record_payload(baby_id, "sleep", ended_at="2026-09-09T13:00:00+02:00"),
             record_payload(baby_id, "diaper_change", is_wet=True, is_dirty=True),
             record_payload(
                 baby_id,
@@ -230,3 +228,107 @@ def test_profile_picture_is_normalized_to_webp() -> None:
 
     asyncio.run(with_client(scenario))
 
+
+def test_invitation_is_one_time_and_device_revocation_is_scoped() -> None:
+    async def scenario(owner_client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(owner_client)
+        invitation = await owner_client.post(
+            "/api/v1/invitations",
+            headers={"X-CSRF-Token": csrf},
+            json={"expires_in_hours": 1},
+        )
+        assert invitation.status_code == 201, invitation.text
+        token = invitation.json()["token"]
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as invited:
+            accepted = await invited.post(
+                "/api/v1/invitations/accept",
+                json={
+                    "token": token,
+                    "username": "caregiver",
+                    "display_name": "Caregiver",
+                    "password": "another long test passphrase",
+                    "device_name": "Kitchen phone",
+                },
+            )
+            assert accepted.status_code == 201, accepted.text
+            caregiver_csrf = accepted.json()["csrf_token"]
+            devices = (await invited.get("/api/v1/sessions/devices")).json()
+            assert len(devices) == 1
+            assert devices[0]["device_name"] == "Kitchen phone"
+            assert devices[0]["current"] is True
+
+            revoked = await invited.delete(
+                f"/api/v1/sessions/devices/{devices[0]['id']}",
+                headers={"X-CSRF-Token": caregiver_csrf},
+            )
+            assert revoked.status_code == 204
+            assert (await invited.get("/api/v1/sessions/current")).status_code == 401
+
+        second_accept = await owner_client.post(
+            "/api/v1/invitations/accept",
+            json={
+                "token": token,
+                "username": "other",
+                "display_name": "Other",
+                "password": "yet another test passphrase",
+            },
+        )
+        assert second_accept.status_code == 410
+
+    asyncio.run(with_client(scenario))
+
+
+def test_destructive_deletion_requires_exact_confirmation() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        denied = await client.request(
+            "DELETE",
+            f"/api/v1/babies/{baby_id}",
+            headers={"X-CSRF-Token": csrf},
+            json={"confirmation": "Wrong", "export_acknowledged": True},
+        )
+        assert denied.status_code == 409
+        deleted = await client.request(
+            "DELETE",
+            f"/api/v1/babies/{baby_id}",
+            headers={"X-CSRF-Token": csrf},
+            json={"confirmation": "Mila", "export_acknowledged": True},
+        )
+        assert deleted.status_code == 204
+        assert (await client.get("/api/v1/babies")).json() == []
+
+        household_denied = await client.request(
+            "DELETE",
+            "/api/v1/household",
+            headers={"X-CSRF-Token": csrf},
+            json={"confirmation": "Home"},
+        )
+        assert household_denied.status_code == 409
+        household_deleted = await client.request(
+            "DELETE",
+            "/api/v1/household",
+            headers={"X-CSRF-Token": csrf},
+            json={"confirmation": "DELETE Home"},
+        )
+        assert household_deleted.status_code == 204
+        assert (await client.get("/api/v1/setup")).json() == {"setup_required": True}
+
+    asyncio.run(with_client(scenario))
+
+
+def test_login_failures_are_rate_limited_without_revealing_username() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        await setup_owner(client)
+        payload = {"username": "nonexistent-rate-limit-user", "password": "incorrect"}
+        for _ in range(8):
+            response = await client.post("/api/v1/sessions", json=payload)
+            assert response.status_code == 401
+            assert response.json()["detail"] == "invalid_credentials"
+        limited = await client.post("/api/v1/sessions", json=payload)
+        assert limited.status_code == 429
+        assert limited.json()["detail"] == "try_again_later"
+
+    asyncio.run(with_client(scenario))

@@ -62,7 +62,12 @@ export async function flushPending(): Promise<number> {
 
 export async function cacheRecords(babyId: string, page: CareRecordPage) {
   const db = await database;
-  await db.put("cache", page, `records:${babyId}`);
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const bounded = {
+    ...page,
+    items: page.items.filter((record) => new Date(record.occurred_at).getTime() >= cutoff),
+  };
+  await db.put("cache", bounded, `records:${babyId}`);
 }
 
 export async function cachedRecords(babyId: string) {

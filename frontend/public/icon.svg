@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Minilog">
+  <rect width="512" height="512" rx="120" fill="#0d1117"/>
+  <circle cx="256" cy="256" r="166" fill="#f3a884"/>
+  <path d="M204 191c12-29 35-46 69-49-4 19 1 36 16 50" fill="none" stroke="#251109" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="205" cy="252" r="14" fill="#251109"/>
+  <circle cx="307" cy="252" r="14" fill="#251109"/>
+  <path d="M195 309c33 39 89 39 122 0" fill="none" stroke="#251109" stroke-width="24" stroke-linecap="round"/>
+  <path d="M156 268c-23-4-39-23-39-46 0-25 20-45 45-45 12 0 23 5 31 13M356 268c23-4 39-23 39-46 0-25-20-45-45-45-12 0-23 5-31 13" fill="none" stroke="#251109" stroke-width="20" stroke-linecap="round"/>
+</svg>

@@ -5,11 +5,18 @@ import type {
   CareRecordCreate,
   CareRecordPage,
   Caregiver,
+  DeviceSession,
+  ImportBatch,
+  ImportedDailyNote,
+  Invitation,
+  InvitationAccept,
   LoginRequest,
+  PiyoLogPreview,
   Session,
   SetupRequest,
   SetupStatus,
   SyncPage,
+  Household,
 } from "./types";
 
 export class ApiError extends Error {
@@ -61,8 +68,19 @@ export const api = {
   me: () => request<Caregiver>("/sessions/current"),
   logout: () => request<void>("/sessions/current", { method: "DELETE" }),
   babies: () => request<Baby[]>("/babies"),
+  household: () => request<Household>("/household"),
   createBaby: (payload: BabyCreate) =>
     request<Baby>("/babies", { method: "POST", body: JSON.stringify(payload) }),
+  deleteBaby: (babyId: string, confirmation: string, exportAcknowledged: boolean) =>
+    request<void>(`/babies/${babyId}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation, export_acknowledged: exportAcknowledged }),
+    }),
+  deleteHousehold: (confirmation: string) =>
+    request<void>("/household", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation }),
+    }),
   records: (babyId: string) =>
     request<CareRecordPage>(`/care-records?baby_id=${encodeURIComponent(babyId)}&limit=200`),
   createRecord: (payload: CareRecordCreate, mutationId: string) =>
@@ -84,5 +102,41 @@ export const api = {
     body.set("image", file);
     return request<void>(`/babies/${babyId}/profile-picture`, { method: "PUT", body });
   },
+  caregivers: () => request<Caregiver[]>("/caregivers"),
+  createInvitation: () =>
+    request<Invitation>("/invitations", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  acceptInvitation: (payload: InvitationAccept) =>
+    request<Session>("/invitations/accept", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deviceSessions: () => request<DeviceSession[]>("/sessions/devices"),
+  revokeDeviceSession: (id: string) =>
+    request<void>(`/sessions/devices/${id}`, { method: "DELETE" }),
+  imports: () => request<ImportBatch[]>("/imports/piyolog"),
+  importedDailyNotes: (babyId: string) =>
+    request<ImportedDailyNote[]>(
+      `/imports/piyolog/daily-notes?baby_id=${encodeURIComponent(babyId)}`,
+    ),
+  deleteImportSource: (id: string) =>
+    request<void>(`/imports/piyolog/${id}/source`, { method: "DELETE" }),
+  previewPiyolog: (babyId: string, timeZone: string, file: File) => {
+    const body = new FormData();
+    body.set("baby_id", babyId);
+    body.set("source_time_zone", timeZone);
+    body.set("file", file);
+    return request<PiyoLogPreview>("/imports/piyolog/preview", { method: "POST", body });
+  },
+  confirmPiyolog: (babyId: string, timeZone: string, file: File, retainSource: boolean, replaceModified: boolean) => {
+    const body = new FormData();
+    body.set("baby_id", babyId);
+    body.set("source_time_zone", timeZone);
+    body.set("retain_source", String(retainSource));
+    body.set("replace_modified", String(replaceModified));
+    body.set("file", file);
+    return request<ImportBatch>("/imports/piyolog/confirm", { method: "POST", body });
+  },
 };
-

@@ -4,6 +4,7 @@ from sqlalchemy import text
 from minilog.dependencies import Database
 
 router = APIRouter(tags=["health"])
+SCHEMA_REVISION = "47ccc6557a5e"
 
 
 @router.get("/health/live")
@@ -14,7 +15,9 @@ async def live() -> dict[str, str]:
 @router.get("/health/ready")
 async def ready(db: Database) -> dict[str, str]:
     try:
-        db.execute(text("SELECT 1"))
+        revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="database_unavailable") from exc
-    return {"status": "ready"}
+    if revision != SCHEMA_REVISION:
+        raise HTTPException(status_code=503, detail="database_revision_mismatch")
+    return {"status": "ready", "schema_revision": revision}

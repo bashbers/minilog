@@ -46,6 +46,38 @@ class SessionOut(APIModel):
     expires_at: int
 
 
+class InvitationCreate(APIModel):
+    expires_in_hours: int | None = Field(default=None, ge=1, le=168)
+
+
+class InvitationOut(APIModel):
+    id: UUID
+    token: str
+    expires_at: int
+
+
+class InvitationAccept(APIModel):
+    token: str = Field(min_length=20, max_length=512)
+    username: str = Field(min_length=3, max_length=80)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=12, max_length=1024)
+    device_name: str | None = Field(default=None, max_length=120)
+
+
+class DeviceSessionOut(APIModel):
+    id: UUID
+    device_name: str | None
+    created_at: int
+    last_seen_at: int
+    expires_at: int
+    current: bool
+
+
+class PasswordChange(APIModel):
+    current_password: str = Field(min_length=1, max_length=1024)
+    new_password: str = Field(min_length=12, max_length=1024)
+
+
 class HouseholdOut(APIModel):
     id: UUID
     display_name: str
@@ -63,6 +95,15 @@ class BabyCreate(APIModel):
 
 class BabyUpdate(BabyCreate):
     pass
+
+
+class BabyDeleteRequest(APIModel):
+    confirmation: str = Field(min_length=1, max_length=120)
+    export_acknowledged: bool
+
+
+class HouseholdDeleteRequest(APIModel):
+    confirmation: str = Field(min_length=1, max_length=200)
 
 
 class BabyOut(APIModel):
@@ -251,6 +292,40 @@ class SyncPage(APIModel):
     oldest_valid_cursor: int
 
 
+class PiyoLogPreview(APIModel):
+    source_hash: str
+    duplicate_import_id: UUID | None = None
+    detected_locale: Literal["en", "ja"]
+    date_from: date | None = None
+    date_to: date | None = None
+    counts: dict[str, int]
+    conflicts: dict[str, int] = Field(default_factory=dict)
+    unknown_lines: list[dict[str, object]]
+    warnings: list[str]
+
+
+class ImportBatchOut(APIModel):
+    id: UUID
+    baby_id: UUID
+    source_hash: str
+    detected_locale: str
+    date_from: date | None
+    date_to: date | None
+    status: str
+    counts: dict[str, int]
+    source_retained: bool
+    created_at: datetime
+
+
+class ImportedDailyNoteOut(APIModel):
+    id: UUID
+    baby_id: UUID
+    local_date: date
+    body: str
+    source_author_text: str | None
+    source_line: int | None
+
+
 def datetime_to_ms(value: datetime) -> int:
     return int(value.astimezone(UTC).timestamp() * 1000)
 
@@ -259,4 +334,3 @@ def ms_to_datetime(value: int | None) -> datetime | None:
     if value is None:
         return None
     return datetime.fromtimestamp(value / 1000, tz=UTC)
-

@@ -71,4 +71,3 @@ def find_session(db: Session, raw_token: str) -> AuthSession | None:
     if auth_session.expires_at <= now_ms() or not auth_session.caregiver.is_active:
         return None
     return auth_session
-

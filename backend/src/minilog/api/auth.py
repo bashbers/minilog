@@ -1,6 +1,7 @@
+from collections import defaultdict, deque
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 
 from minilog.config import Settings, get_settings_dependency
@@ -26,6 +27,21 @@ from minilog.security import (
 
 router = APIRouter(tags=["authentication"])
 SettingsDep = Annotated[Settings, Depends(get_settings_dependency)]
+_failed_logins: dict[str, deque[int]] = defaultdict(deque)
+
+
+def login_rate_key(request: Request, username: str) -> str:
+    client = request.client.host if request.client else "unknown"
+    return f"{client}:{normalize_username(username)}"
+
+
+def enforce_login_rate_limit(key: str, settings: Settings) -> None:
+    attempts = _failed_logins[key]
+    cutoff = now_ms() - settings.login_attempt_window_seconds * 1000
+    while attempts and attempts[0] < cutoff:
+        attempts.popleft()
+    if len(attempts) >= settings.login_attempt_limit:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="try_again_later")
 
 
 def set_session_cookies(
@@ -111,10 +127,13 @@ async def setup(
 @router.post("/sessions", response_model=SessionOut)
 async def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     db: Database,
     settings: SettingsDep,
 ) -> SessionOut:
+    rate_key = login_rate_key(request, payload.username)
+    enforce_login_rate_limit(rate_key, settings)
     caregiver = db.scalar(
         select(Caregiver).where(
             Caregiver.username_normalized == normalize_username(payload.username),
@@ -122,8 +141,10 @@ async def login(
         )
     )
     if caregiver is None or not verify_password(caregiver.password_hash, payload.password):
+        _failed_logins[rate_key].append(now_ms())
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
 
+    _failed_logins.pop(rate_key, None)
     auth_session, session_token, csrf_token = create_session(
         db, caregiver, settings, payload.device_name
     )

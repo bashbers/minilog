@@ -221,8 +221,7 @@ class CareRecord(Base):
             "baby_id",
             unique=True,
             sqlite_where=text(
-                "record_type = 'BREASTFEEDING' AND ended_at_utc IS NULL "
-                "AND deleted_at IS NULL"
+                "record_type = 'BREASTFEEDING' AND ended_at_utc IS NULL AND deleted_at IS NULL"
             ),
         ),
         Index(
@@ -356,9 +355,7 @@ class DiaperChangeRecord(Base):
 class PumpingRecord(Base):
     __tablename__ = "pumping_records"
     __table_args__ = (
-        CheckConstraint(
-            "expressed_ml IS NULL OR expressed_ml >= 0", name="amount_non_negative"
-        ),
+        CheckConstraint("expressed_ml IS NULL OR expressed_ml >= 0", name="amount_non_negative"),
     )
     care_record_id: Mapped[str] = mapped_column(
         ForeignKey("care_records.id", ondelete="CASCADE"), primary_key=True

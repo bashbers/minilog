@@ -62,7 +62,7 @@ function stoppedPayload(record: TimelineRecord): CareRecordCreate {
       expressed_ml: Number(record.details.expressed_ml) || null,
     };
   }
-  const intervals = Array.isArray(record.details.intervals)
+  const intervals: { side: "left" | "right"; started_at: string; ended_at: string | null }[] = Array.isArray(record.details.intervals)
     ? record.details.intervals.map((item) => {
         const interval = item as { side: "left" | "right"; started_at: string; ended_at: string | null };
         return { ...interval, ended_at: interval.ended_at ?? endedAt };
@@ -76,10 +76,34 @@ function stoppedPayload(record: TimelineRecord): CareRecordCreate {
   };
 }
 
+function switchSidePayload(record: TimelineRecord): CareRecordCreate {
+  const switchedAt = new Date().toISOString();
+  const intervals: { side: "left" | "right"; started_at: string; ended_at: string | null }[] = Array.isArray(record.details.intervals)
+    ? record.details.intervals.map((item) => {
+        const interval = item as { side: "left" | "right"; started_at: string; ended_at: string | null };
+        return { ...interval, ended_at: interval.ended_at ?? switchedAt };
+      })
+    : [];
+  const previous = intervals.at(-1)?.side ?? "left";
+  intervals.push({ side: previous === "left" ? "right" : "left", started_at: switchedAt, ended_at: null });
+  return {
+    id: record.id,
+    baby_id: record.baby_id,
+    record_type: "breastfeeding",
+    occurred_at: record.occurred_at,
+    local_offset_minutes: record.local_offset_minutes,
+    note: record.note,
+    estimated_amount_ml: Number(record.details.estimated_amount_ml) || null,
+    intervals,
+  };
+}
+
 export function Timeline({ records, babyId, showDay = false }: { records: TimelineRecord[]; babyId: string; showDay?: boolean }) {
   const update = useUpdateRecord(babyId);
   const remove = useDeleteRecord(babyId);
   const [menu, setMenu] = useState<string | null>(null);
+  const [finishingPump, setFinishingPump] = useState<string | null>(null);
+  const [pumpAmount, setPumpAmount] = useState("");
 
   if (!records.length) return <div className="empty-state"><p>No care records yet.</p><span>Use the quick-add button when something happens.</span></div>;
   return (
@@ -94,7 +118,9 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
               <div className="record-heading"><div><h3>{labels[record.record_type]}</h3><p>{detail(record)}</p></div>{record.queued ? <CloudOff aria-label="Waiting to sync" /> : record.record_type !== "imported_care_record" && <button className="ghost icon-button" aria-label="Record options" onClick={() => setMenu(menu === record.id ? null : record.id)}><Ellipsis /></button>}</div>
               {record.note && <p className="record-note">{record.note}</p>}
               <p className="attribution">{record.queued ? "Waiting for connection" : `by ${record.author_label}`}</p>
-              {active && !record.queued && <button className="stop-button" onClick={() => update.mutate({ record, payload: stoppedPayload(record) })}><Square /> Stop</button>}
+              {active && !record.queued && record.record_type === "breastfeeding" && <div className="active-actions"><button className="secondary small" onClick={() => update.mutate({ record, payload: switchSidePayload(record) })}>Switch side</button><button className="stop-button" onClick={() => update.mutate({ record, payload: stoppedPayload(record) })}><Square /> Stop</button></div>}
+              {active && !record.queued && record.record_type === "sleep" && <button className="stop-button" onClick={() => update.mutate({ record, payload: stoppedPayload(record) })}><Square /> Stop</button>}
+              {active && !record.queued && record.record_type === "pumping" && (finishingPump === record.id ? <div className="pump-finish"><label>Expressed volume (ml) <span className="muted">optional</span><input aria-label="Expressed volume ml" type="number" min="0" inputMode="numeric" value={pumpAmount} onChange={(event) => setPumpAmount(event.target.value)} /></label><div className="active-actions"><button className="secondary small" onClick={() => setFinishingPump(null)}>Cancel</button><button className="stop-button" onClick={() => { const payload = stoppedPayload(record); if (payload.record_type === "pumping") payload.expressed_ml = pumpAmount ? Number(pumpAmount) : null; update.mutate({ record, payload }); setFinishingPump(null); setPumpAmount(""); }}><Square /> Stop & save</button></div></div> : <button className="stop-button" onClick={() => { setFinishingPump(record.id); setPumpAmount(String(record.details.expressed_ml ?? "")); }}><Square /> Stop</button>)}
               {menu === record.id && <div className="record-menu"><button onClick={() => { if (window.confirm("Delete this care record?")) remove.mutate(record); setMenu(null); }}>Delete record</button></div>}
             </div>
           </article>
@@ -103,4 +129,3 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
     </div>
   );
 }
-

@@ -1,0 +1,8 @@
+PiyoLog text export
+September 8, 2026
+07:00 Sleep
+08:15 Wake up
+08:30 Bottle: 120 ml formula
+09:00 Diaper: wet
+Diary: A relaxed morning
+09:30 Custom event: details are kept

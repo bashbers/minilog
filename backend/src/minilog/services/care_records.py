@@ -203,9 +203,7 @@ def delete_detail(db: Session, record: CareRecord) -> None:
     }[record.record_type]
     if record.record_type is RecordType.BREASTFEEDING:
         db.execute(
-            delete(BreastfeedingInterval).where(
-                BreastfeedingInterval.care_record_id == record.id
-            )
+            delete(BreastfeedingInterval).where(BreastfeedingInterval.care_record_id == record.id)
         )
     db.execute(delete(detail_type).where(detail_type.care_record_id == record.id))
 
@@ -325,9 +323,7 @@ def append_change(db: Session, record: CareRecord, operation: SyncOperation) -> 
     )
 
 
-def create_record(
-    db: Session, payload: CareRecordCreate, caregiver: Caregiver
-) -> CareRecord:
+def create_record(db: Session, payload: CareRecordCreate, caregiver: Caregiver) -> CareRecord:
     ensure_active_slot(db, payload, caregiver)
     record_id = str(payload.id) if payload.id else None
     if record_id and db.get(CareRecord, record_id):

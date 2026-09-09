@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Baby, LockKeyhole, ShieldCheck } from "lucide-react";
 import type { FormEvent } from "react";
+import { useState } from "react";
 
 import { api, ApiError } from "../api/client";
 
@@ -54,6 +55,7 @@ export function SetupScreen() {
 }
 
 export function LoginScreen() {
+  const [joining, setJoining] = useState(false);
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: api.login,
@@ -68,21 +70,43 @@ export function LoginScreen() {
       device_name: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Browser",
     });
   };
+  const accept = useMutation({
+    mutationFn: api.acceptInvitation,
+    onSuccess: async () => queryClient.invalidateQueries(),
+  });
+  const acceptInvite = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const values = new FormData(event.currentTarget);
+    accept.mutate({
+      token: String(values.get("token")),
+      username: String(values.get("username")),
+      display_name: String(values.get("displayName")),
+      password: String(values.get("password")),
+      device_name: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Browser",
+    });
+  };
   return (
     <main className="auth-shell">
       <section className="auth-card compact">
         <div className="brand-mark"><Baby aria-hidden="true" /></div>
-        <p className="eyebrow">Minilog</p>
-        <h1>Good to see you</h1>
-        <p className="muted">Sign in to your household.</p>
-        <form onSubmit={submit} className="form-stack">
+        <p className="eyebrow">{joining ? "Join household" : "Minilog"}</p>
+        <h1>{joining ? "Use your invitation" : "Good to see you"}</h1>
+        <p className="muted">{joining ? "Create a local Caregiver account on this server." : "Sign in to your household."}</p>
+        {joining ? <form onSubmit={acceptInvite} className="form-stack">
+          <label>Invitation code<input name="token" required minLength={20} autoComplete="off" /></label>
+          <label>Username<input name="username" required minLength={3} autoComplete="username" /></label>
+          <label>Your name<input name="displayName" required autoComplete="name" /></label>
+          <label>Password<input name="password" type="password" required minLength={12} autoComplete="new-password" /></label>
+          {accept.isError && <p className="error" role="alert">{errorText(accept.error)}</p>}
+          <button className="primary" disabled={accept.isPending}><ShieldCheck /> Join household</button>
+        </form> : <form onSubmit={submit} className="form-stack">
           <label>Username<input name="username" required autoComplete="username" /></label>
           <label>Password<input name="password" type="password" required autoComplete="current-password" /></label>
           {mutation.isError && <p className="error" role="alert">{errorText(mutation.error)}</p>}
           <button className="primary" disabled={mutation.isPending}><LockKeyhole /> Sign in</button>
-        </form>
+        </form>}
+        <button className="auth-switch" onClick={() => setJoining(!joining)}>{joining ? "I already have an account" : "I have an invitation code"}</button>
       </section>
     </main>
   );
 }
-

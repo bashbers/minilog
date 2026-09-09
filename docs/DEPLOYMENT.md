@@ -59,6 +59,14 @@ The data volume contains the SQLite database and application-managed recovery ar
 
 The MVP exposes an API-container command that uses SQLite's online backup mechanism, verifies integrity, and writes a timestamped snapshot with restrictive permissions. Copying that snapshot to independent storage is the operator's responsibility.
 
+Create a verified snapshot while the API is running:
+
+```sh
+docker compose exec api minilog-backup
+```
+
+The command prints the snapshot path under `/data/backups`. Copy it to encrypted storage controlled by the household.
+
 Restore is an explicit offline maintenance operation:
 
 1. Stop normal API service.
@@ -68,6 +76,24 @@ Restore is an explicit offline maintenance operation:
 5. Atomically replace the database and restart readiness checks.
 
 No restore overwrites the sole current database before a validated recovery copy exists. Scheduled backups and retention automation are deferred.
+
+After stopping the API, restore a selected snapshot with a pre-restore recovery copy:
+
+```sh
+docker compose stop api
+docker compose run --rm api minilog-restore --confirm-offline /data/backups/minilog-YYYYMMDDTHHMMSSZ.sqlite3
+docker compose up -d api web
+```
+
+A lossless Minilog ZIP export can be restored through the same offline safety path:
+
+```sh
+docker compose stop api
+docker compose run --rm api minilog-restore-export --confirm-offline /data/import/minilog-export.zip
+docker compose up -d api web
+```
+
+The archive is fully checksum-validated, must match the running database revision, and still causes a verified pre-restore SQLite recovery copy to be made.
 
 ## Upgrades
 
@@ -85,6 +111,10 @@ Migration failure restores the verified snapshot and leaves a sanitized diagnost
 ## Recovery and lockout
 
 A local API-container command can reset the Owner password or issue a new controlled recovery token. It requires direct server access, revokes sessions, never prints stored data, and is covered by recovery tests.
+
+```sh
+docker compose exec api minilog-reset-owner
+```
 
 ## Operational checks
 

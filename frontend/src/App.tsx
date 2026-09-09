@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Baby as BabyIcon, History, LogOut, Plus, Sparkles, Upload } from "lucide-react";
+import { Baby as BabyIcon, History, LogOut, Plus, Settings, Sparkles, Upload } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, ApiError } from "./api/client";
-import type { Baby, TimelineRecord } from "./api/types";
+import type { Baby, Caregiver, TimelineRecord } from "./api/types";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { BabyOnboarding } from "./components/BabyOnboarding";
 import { QuickAdd } from "./components/QuickAdd";
+import { SettingsPage } from "./components/SettingsPage";
 import { Timeline } from "./components/Timeline";
 import { Trends } from "./components/Trends";
 import { useForegroundSync } from "./hooks/useForegroundSync";
@@ -22,7 +23,7 @@ function AuthGate() {
   if (setup.data?.setup_required) return <SetupScreen />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginScreen />;
   if (me.isError || !me.data) return <ErrorScreen />;
-  return <HouseholdApp />;
+  return <HouseholdApp caregiver={me.data} />;
 }
 
 function LoadingScreen() {
@@ -33,7 +34,7 @@ function ErrorScreen() {
   return <main className="center-screen"><h1>Minilog is unavailable</h1><p className="muted">Check that your private server is running, then reload.</p></main>;
 }
 
-function HouseholdApp() {
+function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   useForegroundSync();
   const babies = useQuery({ queryKey: ["babies"], queryFn: api.babies });
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("selectedBaby"));
@@ -81,6 +82,7 @@ function HouseholdApp() {
           <span className="sr-only">Change profile picture</span>
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await queryClient.invalidateQueries({ queryKey: ["babies"] }); } }} />
         </label>
+        <NavLink className="ghost icon-button topbar-link" to="/settings" aria-label="Settings"><Settings /></NavLink>
         <button className="ghost icon-button" onClick={() => logout.mutate()} aria-label="Sign out"><LogOut /></button>
       </header>
 
@@ -88,6 +90,7 @@ function HouseholdApp() {
         <Route path="/today" element={<TodayPage baby={baby} />} />
         <Route path="/history" element={<HistoryPage baby={baby} />} />
         <Route path="/trends" element={<TrendsPage baby={baby} />} />
+        <Route path="/settings" element={<SettingsPage baby={baby} caregiver={caregiver} />} />
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Routes>
 
@@ -135,8 +138,17 @@ function HistoryPage({ baby }: { baby: Baby }) {
     return record.record_type === filter;
   });
   return (
-    <main className="page"><div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div><select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></div><Timeline records={visible} babyId={baby.id} showDay /></main>
+    <main className="page"><div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div><select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></div>{filter === "all" && <ImportedDailyNotes babyId={baby.id} />}<Timeline records={visible} babyId={baby.id} showDay /></main>
   );
+}
+
+function ImportedDailyNotes({ babyId }: { babyId: string }) {
+  const notes = useQuery({
+    queryKey: ["imported-daily-notes", babyId],
+    queryFn: () => api.importedDailyNotes(babyId),
+  });
+  if (!notes.data?.length) return null;
+  return <section className="daily-notes" aria-label="Imported daily notes"><p className="eyebrow">PiyoLog daily notes</p>{notes.data.map((note) => <article key={note.id}><time>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(`${note.local_date}T12:00:00`))}</time><p>{note.body}</p></article>)}</section>;
 }
 
 function TrendsPage({ baby }: { baby: Baby }) {

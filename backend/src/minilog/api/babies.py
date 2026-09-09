@@ -9,7 +9,7 @@ from sqlalchemy import select
 from minilog.config import get_settings
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
 from minilog.models import Baby, BabyProfilePicture, now_ms
-from minilog.schemas import BabyCreate, BabyOut, BabyUpdate
+from minilog.schemas import BabyCreate, BabyDeleteRequest, BabyOut, BabyUpdate
 
 router = APIRouter(tags=["babies"])
 
@@ -115,9 +115,7 @@ async def set_profile_picture(
 
 
 @router.get("/babies/{baby_id}/profile-picture")
-async def get_profile_picture(
-    baby_id: str, _caregiver: CurrentCaregiver, db: Database
-) -> Response:
+async def get_profile_picture(baby_id: str, _caregiver: CurrentCaregiver, db: Database) -> Response:
     picture = db.get(BabyProfilePicture, baby_id)
     if picture is None:
         raise HTTPException(status_code=404, detail="profile_picture_not_found")
@@ -139,3 +137,23 @@ async def delete_profile_picture(
     if picture is not None:
         db.delete(picture)
         db.commit()
+
+
+@router.delete("/babies/{baby_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_baby(
+    baby_id: str,
+    payload: BabyDeleteRequest,
+    _owner: Owner,
+    _csrf: CsrfProtected,
+    db: Database,
+) -> Response:
+    baby = db.get(Baby, baby_id)
+    if baby is None:
+        raise HTTPException(status_code=404, detail="baby_not_found")
+    if not payload.export_acknowledged:
+        raise HTTPException(status_code=409, detail="export_acknowledgement_required")
+    if payload.confirmation != baby.display_name:
+        raise HTTPException(status_code=409, detail="confirmation_did_not_match")
+    db.delete(baby)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
