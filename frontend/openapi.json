@@ -1,0 +1,2894 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Minilog API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Live",
+        "operationId": "live_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Live Api V1 Health Live Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Ready",
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Ready Api V1 Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/setup": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Setup Status",
+        "operationId": "setup_status_api_v1_setup_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Setup",
+        "operationId": "setup_api_v1_setup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/current": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Current Session",
+        "operationId": "current_session_api_v1_sessions_current_get",
+        "parameters": [
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_v1_sessions_current_delete",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/household": {
+      "get": {
+        "tags": [
+          "household"
+        ],
+        "summary": "Get Household",
+        "operationId": "get_household_api_v1_household_get",
+        "parameters": [
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/babies": {
+      "get": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "List Babies",
+        "operationId": "list_babies_api_v1_babies_get",
+        "parameters": [
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BabyOut"
+                  },
+                  "title": "Response List Babies Api V1 Babies Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "Create Baby",
+        "operationId": "create_baby_api_v1_babies_post",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BabyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/babies/{baby_id}": {
+      "put": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "Update Baby",
+        "operationId": "update_baby_api_v1_babies__baby_id__put",
+        "parameters": [
+          {
+            "name": "baby_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Baby Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BabyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/babies/{baby_id}/profile-picture": {
+      "put": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "Set Profile Picture",
+        "operationId": "set_profile_picture_api_v1_babies__baby_id__profile_picture_put",
+        "parameters": [
+          {
+            "name": "baby_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Baby Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_profile_picture_api_v1_babies__baby_id__profile_picture_put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "Get Profile Picture",
+        "operationId": "get_profile_picture_api_v1_babies__baby_id__profile_picture_get",
+        "parameters": [
+          {
+            "name": "baby_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Baby Id"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "babies"
+        ],
+        "summary": "Delete Profile Picture",
+        "operationId": "delete_profile_picture_api_v1_babies__baby_id__profile_picture_delete",
+        "parameters": [
+          {
+            "name": "baby_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Baby Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/care-records": {
+      "get": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "List Care Records",
+        "operationId": "list_care_records_api_v1_care_records_get",
+        "parameters": [
+          {
+            "name": "baby_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Baby Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "Post Care Record",
+        "operationId": "post_care_record_api_v1_care_records_post",
+        "parameters": [
+          {
+            "name": "X-Mutation-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Mutation-Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/BreastfeedingCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BottleFeedingCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SolidFoodFeedingCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SleepCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DiaperChangeCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PumpingCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MeasurementCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MedicationAdministrationCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NoteCreate"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "record_type",
+                  "mapping": {
+                    "breastfeeding": "#/components/schemas/BreastfeedingCreate",
+                    "bottle_feeding": "#/components/schemas/BottleFeedingCreate",
+                    "solid_food_feeding": "#/components/schemas/SolidFoodFeedingCreate",
+                    "sleep": "#/components/schemas/SleepCreate",
+                    "diaper_change": "#/components/schemas/DiaperChangeCreate",
+                    "pumping": "#/components/schemas/PumpingCreate",
+                    "measurement": "#/components/schemas/MeasurementCreate",
+                    "medication_administration": "#/components/schemas/MedicationAdministrationCreate",
+                    "note": "#/components/schemas/NoteCreate"
+                  }
+                },
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/care-records/{record_id}": {
+      "get": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "Get Care Record",
+        "operationId": "get_care_record_api_v1_care_records__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "Put Care Record",
+        "operationId": "put_care_record_api_v1_care_records__record_id__put",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CareRecordUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "Delete Care Record",
+        "operationId": "delete_care_record_api_v1_care_records__record_id__delete",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync": {
+      "get": {
+        "tags": [
+          "synchronization"
+        ],
+        "summary": "Pull Changes",
+        "operationId": "pull_changes_api_v1_sync_get",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BabyCreate": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Birth Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "birth_date"
+        ],
+        "title": "BabyCreate"
+      },
+      "BabyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Birth Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "has_profile_picture": {
+            "type": "boolean",
+            "title": "Has Profile Picture",
+            "default": false
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "birth_date",
+          "due_date",
+          "updated_at"
+        ],
+        "title": "BabyOut"
+      },
+      "BabyUpdate": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Birth Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "birth_date"
+        ],
+        "title": "BabyUpdate"
+      },
+      "Body_set_profile_picture_api_v1_babies__baby_id__profile_picture_put": {
+        "properties": {
+          "image": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "title": "Body_set_profile_picture_api_v1_babies__baby_id__profile_picture_put"
+      },
+      "BottleFeedingCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "bottle_feeding",
+            "title": "Record Type"
+          },
+          "consumed_ml": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Consumed Ml"
+          },
+          "offered_ml": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offered Ml"
+          },
+          "contents": {
+            "type": "string",
+            "enum": [
+              "breast_milk",
+              "formula",
+              "mixed",
+              "other"
+            ],
+            "title": "Contents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "consumed_ml",
+          "contents"
+        ],
+        "title": "BottleFeedingCreate"
+      },
+      "BreastfeedingCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "breastfeeding",
+            "title": "Record Type"
+          },
+          "estimated_amount_ml": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Amount Ml"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/BreastfeedingIntervalInput"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Intervals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type"
+        ],
+        "title": "BreastfeedingCreate"
+      },
+      "BreastfeedingIntervalInput": {
+        "properties": {
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right"
+            ],
+            "title": "Side"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "side",
+          "started_at"
+        ],
+        "title": "BreastfeedingIntervalInput"
+      },
+      "CareRecordOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "record_type": {
+            "$ref": "#/components/schemas/RecordType"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "record_type",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "details"
+        ],
+        "title": "CareRecordOut"
+      },
+      "CareRecordPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CareRecordOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CareRecordPage"
+      },
+      "CareRecordUpdate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "record": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BreastfeedingCreate"
+              },
+              {
+                "$ref": "#/components/schemas/BottleFeedingCreate"
+              },
+              {
+                "$ref": "#/components/schemas/SolidFoodFeedingCreate"
+              },
+              {
+                "$ref": "#/components/schemas/SleepCreate"
+              },
+              {
+                "$ref": "#/components/schemas/DiaperChangeCreate"
+              },
+              {
+                "$ref": "#/components/schemas/PumpingCreate"
+              },
+              {
+                "$ref": "#/components/schemas/MeasurementCreate"
+              },
+              {
+                "$ref": "#/components/schemas/MedicationAdministrationCreate"
+              },
+              {
+                "$ref": "#/components/schemas/NoteCreate"
+              }
+            ],
+            "title": "Record",
+            "discriminator": {
+              "propertyName": "record_type",
+              "mapping": {
+                "bottle_feeding": "#/components/schemas/BottleFeedingCreate",
+                "breastfeeding": "#/components/schemas/BreastfeedingCreate",
+                "diaper_change": "#/components/schemas/DiaperChangeCreate",
+                "measurement": "#/components/schemas/MeasurementCreate",
+                "medication_administration": "#/components/schemas/MedicationAdministrationCreate",
+                "note": "#/components/schemas/NoteCreate",
+                "pumping": "#/components/schemas/PumpingCreate",
+                "sleep": "#/components/schemas/SleepCreate",
+                "solid_food_feeding": "#/components/schemas/SolidFoodFeedingCreate"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "record"
+        ],
+        "title": "CareRecordUpdate"
+      },
+      "CaregiverOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "username_display": {
+            "type": "string",
+            "title": "Username Display"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username_display",
+          "display_name",
+          "role"
+        ],
+        "title": "CaregiverOut"
+      },
+      "ClockFormat": {
+        "type": "string",
+        "enum": [
+          "12h",
+          "24h"
+        ],
+        "title": "ClockFormat"
+      },
+      "DiaperChangeCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "diaper_change",
+            "title": "Record Type"
+          },
+          "is_wet": {
+            "type": "boolean",
+            "title": "Is Wet"
+          },
+          "is_dirty": {
+            "type": "boolean",
+            "title": "Is Dirty"
+          },
+          "stool_colour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Colour"
+          },
+          "stool_consistency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Consistency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "is_wet",
+          "is_dirty"
+        ],
+        "title": "DiaperChangeCreate"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HouseholdOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "time_zone": {
+            "type": "string",
+            "title": "Time Zone"
+          },
+          "locale": {
+            "type": "string",
+            "title": "Locale"
+          },
+          "clock_format": {
+            "$ref": "#/components/schemas/ClockFormat"
+          },
+          "measurement_system": {
+            "$ref": "#/components/schemas/MeasurementSystem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "time_zone",
+          "locale",
+          "clock_format",
+          "measurement_system"
+        ],
+        "title": "HouseholdOut"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "device_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "MeasurementCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "measurement",
+            "title": "Record Type"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "weight",
+              "height",
+              "temperature"
+            ],
+            "title": "Kind"
+          },
+          "entered_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Entered Value"
+          },
+          "entered_unit": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Entered Unit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "kind",
+          "entered_value",
+          "entered_unit"
+        ],
+        "title": "MeasurementCreate"
+      },
+      "MeasurementSystem": {
+        "type": "string",
+        "enum": [
+          "metric",
+          "imperial"
+        ],
+        "title": "MeasurementSystem"
+      },
+      "MedicationAdministrationCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "medication_administration",
+            "title": "Record Type"
+          },
+          "medicine_name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Medicine Name"
+          },
+          "amount_value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Amount Value"
+          },
+          "unit_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Code"
+          },
+          "custom_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Unit"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "medicine_name",
+          "amount_value"
+        ],
+        "title": "MedicationAdministrationCreate"
+      },
+      "NoteCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "note",
+            "title": "Record Type"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "body"
+        ],
+        "title": "NoteCreate"
+      },
+      "PumpingCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "pumping",
+            "title": "Record Type"
+          },
+          "expressed_ml": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expressed Ml"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type"
+        ],
+        "title": "PumpingCreate"
+      },
+      "RecordType": {
+        "type": "string",
+        "enum": [
+          "breastfeeding",
+          "bottle_feeding",
+          "solid_food_feeding",
+          "sleep",
+          "diaper_change",
+          "pumping",
+          "measurement",
+          "medication_administration",
+          "note",
+          "imported_care_record"
+        ],
+        "title": "RecordType"
+      },
+      "SessionOut": {
+        "properties": {
+          "caregiver": {
+            "$ref": "#/components/schemas/CaregiverOut"
+          },
+          "csrf_token": {
+            "type": "string",
+            "title": "Csrf Token"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "caregiver",
+          "csrf_token",
+          "expires_at"
+        ],
+        "title": "SessionOut"
+      },
+      "SetupRequest": {
+        "properties": {
+          "setup_token": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 20,
+            "title": "Setup Token"
+          },
+          "household_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Household Name"
+          },
+          "time_zone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Time Zone"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup_token",
+          "household_name",
+          "time_zone",
+          "username",
+          "display_name",
+          "password"
+        ],
+        "title": "SetupRequest"
+      },
+      "SetupStatus": {
+        "properties": {
+          "setup_required": {
+            "type": "boolean",
+            "title": "Setup Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup_required"
+        ],
+        "title": "SetupStatus"
+      },
+      "SleepCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "sleep",
+            "title": "Record Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type"
+        ],
+        "title": "SleepCreate"
+      },
+      "SolidFoodFeedingCreate": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "solid_food_feeding",
+            "title": "Record Type"
+          },
+          "foods": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Foods"
+          },
+          "amount_value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Value"
+          },
+          "amount_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Unit"
+          },
+          "reaction_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reaction Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "occurred_at",
+          "local_offset_minutes",
+          "record_type",
+          "foods"
+        ],
+        "title": "SolidFoodFeedingCreate"
+      },
+      "SyncChangeOut": {
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "entity_kind": {
+            "type": "string",
+            "title": "Entity Kind"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence",
+          "entity_kind",
+          "entity_id",
+          "operation",
+          "revision"
+        ],
+        "title": "SyncChangeOut"
+      },
+      "SyncPage": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/SyncChangeOut"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "next_cursor": {
+            "type": "integer",
+            "title": "Next Cursor"
+          },
+          "oldest_valid_cursor": {
+            "type": "integer",
+            "title": "Oldest Valid Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changes",
+          "next_cursor",
+          "oldest_valid_cursor"
+        ],
+        "title": "SyncPage"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
