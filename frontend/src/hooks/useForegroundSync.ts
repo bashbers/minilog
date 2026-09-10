@@ -12,7 +12,12 @@ export function useForegroundSync() {
       if (!active || document.visibilityState !== "visible" || !navigator.onLine) return;
       try {
         const result = await synchronize();
-        if (result.changed) await queryClient.invalidateQueries({ queryKey: ["records"] });
+        if (result.changed) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["records"] }),
+            queryClient.invalidateQueries({ queryKey: ["history-records"] }),
+          ]);
+        }
       } catch {
         // The next foreground poll retries. Care data never enters console output.
       }
@@ -30,4 +35,3 @@ export function useForegroundSync() {
     };
   }, [queryClient]);
 }
-

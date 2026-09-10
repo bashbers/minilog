@@ -703,6 +703,8 @@ export interface components {
             items: components["schemas"]["CareRecordOut"][];
             /** Next Before */
             next_before?: number | null;
+            /** Next Before Id */
+            next_before_id?: string | null;
         };
         /** CareRecordUpdate */
         CareRecordUpdate: {
@@ -2311,6 +2313,10 @@ export interface operations {
             query: {
                 baby_id: string;
                 before?: number | null;
+                before_id?: string | null;
+                record_type?: components["schemas"]["RecordType"][] | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 limit?: number;
             };
             header?: never;

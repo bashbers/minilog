@@ -186,6 +186,97 @@ def test_mutation_retry_and_revision_conflict_are_safe() -> None:
     asyncio.run(with_client(scenario))
 
 
+def test_timeline_pagination_does_not_skip_equal_timestamps() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        record_ids = [str(uuid4()) for _ in range(3)]
+
+        for record_id in record_ids:
+            response = await client.post(
+                "/api/v1/care-records",
+                headers={"X-CSRF-Token": csrf},
+                json=record_payload(baby_id, "note", id=record_id, body=record_id),
+            )
+            assert response.status_code == 201, response.text
+
+        first = (
+            await client.get(
+                "/api/v1/care-records",
+                params={"baby_id": baby_id, "limit": 2},
+            )
+        ).json()
+        assert len(first["items"]) == 2
+        assert first["next_before"] is not None
+        assert first["next_before_id"] is not None
+
+        second = (
+            await client.get(
+                "/api/v1/care-records",
+                params={
+                    "baby_id": baby_id,
+                    "limit": 2,
+                    "before": first["next_before"],
+                    "before_id": first["next_before_id"],
+                },
+            )
+        ).json()
+        combined_ids = [item["id"] for item in first["items"] + second["items"]]
+        assert len(combined_ids) == 3
+        assert set(combined_ids) == set(record_ids)
+
+    asyncio.run(with_client(scenario))
+
+
+def test_timeline_filters_by_types_and_occurrence_range() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        records = [
+            record_payload(
+                baby_id,
+                "note",
+                occurred_at="2026-09-09T12:00:00+02:00",
+                body="Earlier note",
+            ),
+            record_payload(
+                baby_id,
+                "sleep",
+                occurred_at="2026-09-10T12:00:00+02:00",
+                ended_at="2026-09-10T13:00:00+02:00",
+            ),
+            record_payload(
+                baby_id,
+                "bottle_feeding",
+                occurred_at="2026-09-11T12:00:00+02:00",
+                consumed_ml=80,
+                contents="formula",
+            ),
+        ]
+        for payload in records:
+            response = await client.post(
+                "/api/v1/care-records",
+                headers={"X-CSRF-Token": csrf},
+                json=payload,
+            )
+            assert response.status_code == 201, response.text
+
+        response = await client.get(
+            "/api/v1/care-records",
+            params=[
+                ("baby_id", baby_id),
+                ("record_type", "sleep"),
+                ("record_type", "bottle_feeding"),
+                ("date_from", "2026-09-10"),
+                ("date_to", "2026-09-10"),
+            ],
+        )
+        assert response.status_code == 200, response.text
+        assert [item["record_type"] for item in response.json()["items"]] == ["sleep"]
+
+    asyncio.run(with_client(scenario))
+
+
 def test_active_sleep_is_unique_per_baby() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf = await setup_owner(client)

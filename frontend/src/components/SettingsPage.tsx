@@ -149,6 +149,7 @@ function ImportCard({ baby }: { baby: Baby }) {
       setPreview(null);
       setFile(null);
       await queryClient.invalidateQueries({ queryKey: ["records", baby.id] });
+      await queryClient.invalidateQueries({ queryKey: ["history-records", baby.id] });
       await queryClient.invalidateQueries({ queryKey: ["imported-daily-notes", baby.id] });
       await queryClient.invalidateQueries({ queryKey: ["imports"] });
     },

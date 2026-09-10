@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Baby as BabyIcon, History, LogOut, Plus, Settings, Sparkles, Upload } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
@@ -130,25 +130,55 @@ function TodayPage({ baby }: { baby: Baby }) {
 }
 
 function HistoryPage({ baby }: { baby: Baby }) {
-  const records = useRecords(baby.id);
   const [filter, setFilter] = useState("all");
-  const visible = (records.data ?? []).filter((record) => {
-    if (filter === "all") return true;
-    if (filter === "feeding") return record.record_type.includes("feeding");
-    return record.record_type === filter;
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const recordTypes: TimelineRecord["record_type"][] | undefined = filter === "all"
+    ? undefined
+    : filter === "feeding"
+      ? ["breastfeeding", "bottle_feeding", "solid_food_feeding"]
+      : [filter as TimelineRecord["record_type"]];
+  const history = useInfiniteQuery({
+    queryKey: ["history-records", baby.id, filter, dateFrom, dateTo],
+    initialPageParam: {} as { before?: number; beforeId?: string },
+    queryFn: ({ pageParam }) => api.records(baby.id, {
+      before: pageParam.before,
+      beforeId: pageParam.beforeId,
+      recordTypes,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      limit: 50,
+    }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.next_before == null || !lastPage.next_before_id) return undefined;
+      return { before: lastPage.next_before, beforeId: lastPage.next_before_id };
+    },
   });
+  const visible = history.data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <main className="page"><div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div><select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></div>{filter === "all" && <ImportedDailyNotes babyId={baby.id} />}<Timeline records={visible} babyId={baby.id} showDay /></main>
+    <main className="page">
+      <div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div></div>
+      <div className="history-filters" aria-label="History filters">
+        <label>Care type<select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+        <label>From<input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} /></label>
+        <label>To<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} /></label>
+      </div>
+      {filter === "all" && <ImportedDailyNotes babyId={baby.id} dateFrom={dateFrom} dateTo={dateTo} />}
+      {history.isPending ? <div className="skeleton-list" /> : <Timeline records={visible} babyId={baby.id} showDay />}
+      {history.isError && <p className="error" role="alert">Could not load this history. Check the connection and try again.</p>}
+      {history.hasNextPage && <button className="secondary load-older" disabled={history.isFetchingNextPage} onClick={() => history.fetchNextPage()}>{history.isFetchingNextPage ? "Loading…" : "Load older"}</button>}
+    </main>
   );
 }
 
-function ImportedDailyNotes({ babyId }: { babyId: string }) {
+function ImportedDailyNotes({ babyId, dateFrom, dateTo }: { babyId: string; dateFrom: string; dateTo: string }) {
   const notes = useQuery({
     queryKey: ["imported-daily-notes", babyId],
     queryFn: () => api.importedDailyNotes(babyId),
   });
-  if (!notes.data?.length) return null;
-  return <section className="daily-notes" aria-label="Imported daily notes"><p className="eyebrow">PiyoLog daily notes</p>{notes.data.map((note) => <article key={note.id}><time>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(`${note.local_date}T12:00:00`))}</time><p>{note.body}</p></article>)}</section>;
+  const visible = notes.data?.filter((note) => (!dateFrom || note.local_date >= dateFrom) && (!dateTo || note.local_date <= dateTo));
+  if (!visible?.length) return null;
+  return <section className="daily-notes" aria-label="Imported daily notes"><p className="eyebrow">PiyoLog daily notes</p>{visible.map((note) => <article key={note.id}><time>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(`${note.local_date}T12:00:00`))}</time><p>{note.body}</p></article>)}</section>;
 }
 
 function TrendsPage({ baby }: { baby: Baby }) {

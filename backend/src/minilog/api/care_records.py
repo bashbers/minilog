@@ -1,12 +1,14 @@
 import json
+from datetime import date, datetime, time, timedelta
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Header, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database
-from minilog.models import Baby, CareRecord, ProcessedMutation
+from minilog.models import Baby, CareRecord, Household, ProcessedMutation, RecordType
 from minilog.schemas import (
     CareRecordCreate,
     CareRecordOut,
@@ -36,10 +38,22 @@ async def list_care_records(
     _caregiver: CurrentCaregiver,
     db: Database,
     before: int | None = None,
+    before_id: UUID | None = None,
+    record_type: Annotated[list[RecordType] | None, Query()] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> CareRecordPage:
     if db.get(Baby, str(baby_id)) is None:
         raise HTTPException(status_code=404, detail="baby_not_found")
+    if before_id is not None and before is None:
+        raise HTTPException(status_code=422, detail="before_id_requires_before")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(status_code=422, detail="invalid_occurrence_range")
+    household = db.scalar(select(Household))
+    if household is None:
+        raise RuntimeError("configured Household is missing")
+    household_time_zone = ZoneInfo(household.time_zone)
     statement = (
         select(CareRecord)
         .where(CareRecord.baby_id == str(baby_id), CareRecord.deleted_at.is_(None))
@@ -47,13 +61,39 @@ async def list_care_records(
         .limit(limit + 1)
     )
     if before is not None:
-        statement = statement.where(CareRecord.occurred_at_utc < before)
+        if before_id is None:
+            statement = statement.where(CareRecord.occurred_at_utc < before)
+        else:
+            statement = statement.where(
+                or_(
+                    CareRecord.occurred_at_utc < before,
+                    and_(
+                        CareRecord.occurred_at_utc == before,
+                        CareRecord.id < str(before_id),
+                    ),
+                )
+            )
+    if record_type:
+        statement = statement.where(CareRecord.record_type.in_(record_type))
+    if date_from is not None:
+        start = datetime.combine(date_from, time.min, tzinfo=household_time_zone)
+        statement = statement.where(
+            CareRecord.occurred_at_utc >= int(start.timestamp() * 1000)
+        )
+    if date_to is not None:
+        end = datetime.combine(
+            date_to + timedelta(days=1), time.min, tzinfo=household_time_zone
+        )
+        statement = statement.where(CareRecord.occurred_at_utc < int(end.timestamp() * 1000))
     records = list(db.scalars(statement).all())
     has_more = len(records) > limit
     records = records[:limit]
     next_before = records[-1].occurred_at_utc if has_more and records else None
+    next_before_id = records[-1].id if has_more and records else None
     return CareRecordPage(
-        items=[to_output(db, record) for record in records], next_before=next_before
+        items=[to_output(db, record) for record in records],
+        next_before=next_before,
+        next_before_id=next_before_id,
     )
 
 

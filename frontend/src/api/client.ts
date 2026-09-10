@@ -30,6 +30,15 @@ export class ApiError extends Error {
   }
 }
 
+export interface RecordListOptions {
+  before?: number;
+  beforeId?: string;
+  recordTypes?: CareRecord["record_type"][];
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}
+
 function cookie(name: string): string | undefined {
   const prefix = `${encodeURIComponent(name)}=`;
   return document.cookie
@@ -83,8 +92,20 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ confirmation }),
     }),
-  records: (babyId: string) =>
-    request<CareRecordPage>(`/care-records?baby_id=${encodeURIComponent(babyId)}&limit=200`),
+  records: (babyId: string, options: RecordListOptions = {}) => {
+    const parameters = new URLSearchParams({
+      baby_id: babyId,
+      limit: String(options.limit ?? 200),
+    });
+    if (options.before !== undefined) parameters.set("before", String(options.before));
+    if (options.beforeId) parameters.set("before_id", options.beforeId);
+    if (options.dateFrom) parameters.set("date_from", options.dateFrom);
+    if (options.dateTo) parameters.set("date_to", options.dateTo);
+    options.recordTypes?.forEach((recordType) =>
+      parameters.append("record_type", recordType),
+    );
+    return request<CareRecordPage>(`/care-records?${parameters.toString()}`);
+  },
   createRecord: (payload: CareRecordCreate, mutationId: string) =>
     request<CareRecord>("/care-records", {
       method: "POST",

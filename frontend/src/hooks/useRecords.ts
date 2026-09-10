@@ -81,7 +81,12 @@ export function useCreateRecord(babyId: string) {
         return pendingRecord(identified, mutationId);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
+      ]);
+    },
   });
 }
 
@@ -90,7 +95,12 @@ export function useUpdateRecord(babyId: string) {
   return useMutation({
     mutationFn: ({ record, payload }: { record: CareRecord; payload: CareRecordCreate }) =>
       api.updateRecord(record.id, record.revision, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
+      ]);
+    },
   });
 }
 
@@ -98,7 +108,11 @@ export function useDeleteRecord(babyId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (record: CareRecord) => api.deleteRecord(record.id, record.revision),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
+      ]);
+    },
   });
 }
-

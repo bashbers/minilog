@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -25,6 +26,15 @@ class SetupRequest(APIModel):
     username: str = Field(min_length=3, max_length=80)
     display_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=12, max_length=1024)
+
+    @field_validator("time_zone")
+    @classmethod
+    def valid_time_zone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("time zone must be an IANA time zone") from exc
+        return value
 
 
 class LoginRequest(APIModel):
@@ -307,6 +317,7 @@ class CareRecordOut(APIModel):
 class CareRecordPage(APIModel):
     items: list[CareRecordOut]
     next_before: int | None = None
+    next_before_id: UUID | None = None
 
 
 class CareRecordUpdate(APIModel):
