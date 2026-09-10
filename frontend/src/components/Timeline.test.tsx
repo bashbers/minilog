@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { TimelineRecord } from "../api/types";
 import { Timeline } from "./Timeline";
@@ -44,3 +44,16 @@ test("marks offline creations without exposing edit controls", () => {
   expect(screen.queryByLabelText("Record options")).not.toBeInTheDocument();
 });
 
+test("opens the online editor from record options", () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Timeline records={[record]} babyId={record.baby_id} />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(screen.getByLabelText("Record options"));
+  fireEvent.click(screen.getByRole("button", { name: "Edit record" }));
+
+  expect(screen.getByRole("dialog", { name: "Edit Bottle" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Consumed (ml)")).toHaveValue(90);
+});

@@ -107,8 +107,9 @@ textarea { resize: vertical; }
 .active-actions { display: flex; align-items: center; gap: .6rem; margin-top: .7rem; }
 .active-actions .stop-button { margin-top: 0; }
 .pump-finish { display: grid; gap: .5rem; margin-top: .7rem; padding: .75rem; border-radius: .9rem; background: var(--surface-2); }
-.record-menu { position: absolute; right: .8rem; top: 3.2rem; padding: .4rem; border: 1px solid var(--line); background: var(--surface-2); border-radius: .8rem; z-index: 5; box-shadow: 0 1rem 2rem #0008; }
+.record-menu { position: absolute; right: .8rem; top: 3.2rem; min-width: 10rem; display: grid; padding: .4rem; border: 1px solid var(--line); background: var(--surface-2); border-radius: .8rem; z-index: 5; box-shadow: 0 1rem 2rem #0008; }
 .record-menu button { background: transparent; color: var(--danger); padding: .7rem; }
+.record-menu .edit-record-button { color: var(--text); }
 .empty-state { padding: 3rem 1rem; text-align: center; border: 1px dashed var(--line); border-radius: 1.2rem; color: var(--muted); }
 .empty-state p { color: var(--text); font-weight: 800; margin-bottom: .3rem; }
 .daily-notes { display: grid; gap: .55rem; margin-bottom: 1rem; }
@@ -132,6 +133,8 @@ textarea { resize: vertical; }
 .care-action { min-height: 6.3rem; padding: .7rem; border-radius: 1rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); display: grid; place-items: center; gap: .45rem; font-weight: 750; }
 .care-action svg, .emoji-icon { width: 1.6rem; color: var(--accent); }
 .care-form { margin-top: .5rem; }
+.compact-stack { margin-top: 0; gap: .7rem; }
+.interval-fields { display: grid; grid-template-columns: .65fr 1.25fr 1.25fr; gap: .6rem; padding: .7rem; border-radius: .8rem; background: var(--surface-2); }
 fieldset { margin: 0; padding: .8rem; border: 1px solid var(--line); border-radius: .9rem; }
 legend { color: var(--muted); font-size: .8rem; }
 .choice-row { display: flex; gap: 1.4rem; }
@@ -203,6 +206,7 @@ legend { color: var(--muted); font-size: .8rem; }
   .danger-grid { grid-template-columns: 1fr; }
   .history-filters { grid-template-columns: 1fr 1fr; }
   .history-filters label:first-child { grid-column: 1 / -1; }
+  .interval-fields { grid-template-columns: 1fr; }
   .quick-action-row { grid-template-columns: minmax(0, 1fr) auto; }
   .quick-action-visible { grid-column: 1; grid-row: 2; }
   .quick-action-order { grid-column: 2; grid-row: 1 / span 2; }

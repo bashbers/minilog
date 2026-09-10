@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { CareRecord, CareRecordCreate, TimelineRecord } from "../api/types";
 import {
   cachedRecords,
@@ -96,6 +96,15 @@ export function useUpdateRecord(babyId: string) {
     mutationFn: ({ record, payload }: { record: CareRecord; payload: CareRecordCreate }) =>
       api.updateRecord(record.id, record.revision, payload),
     onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
+        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
+      ]);
+    },
+    onError: async (error) => {
+      if (!(error instanceof ApiError) || error.status !== 409 || error.detail !== "stale_revision") {
+        return;
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
         queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { CareRecordCreate, TimelineRecord } from "../api/types";
 import { useDeleteRecord, useUpdateRecord } from "../hooks/useRecords";
 import { durationMinutes, formatDay, formatTime } from "../lib/time";
+import { EditRecordSheet } from "./EditRecordSheet";
 
 const labels: Record<TimelineRecord["record_type"], string> = {
   breastfeeding: "Breastfeeding",
@@ -102,11 +103,12 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
   const update = useUpdateRecord(babyId);
   const remove = useDeleteRecord(babyId);
   const [menu, setMenu] = useState<string | null>(null);
+  const [editing, setEditing] = useState<TimelineRecord | null>(null);
   const [finishingPump, setFinishingPump] = useState<string | null>(null);
   const [pumpAmount, setPumpAmount] = useState("");
 
   if (!records.length) return <div className="empty-state"><p>No care records yet.</p><span>Use the quick-add button when something happens.</span></div>;
-  return (
+  return <>
     <div className="timeline">
       {records.map((record) => {
         const active = !record.ended_at && ["sleep", "breastfeeding", "pumping"].includes(record.record_type);
@@ -121,11 +123,12 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
               {active && !record.queued && record.record_type === "breastfeeding" && <div className="active-actions"><button className="secondary small" onClick={() => update.mutate({ record, payload: switchSidePayload(record) })}>Switch side</button><button className="stop-button" onClick={() => update.mutate({ record, payload: stoppedPayload(record) })}><Square /> Stop</button></div>}
               {active && !record.queued && record.record_type === "sleep" && <button className="stop-button" onClick={() => update.mutate({ record, payload: stoppedPayload(record) })}><Square /> Stop</button>}
               {active && !record.queued && record.record_type === "pumping" && (finishingPump === record.id ? <div className="pump-finish"><label>Expressed volume (ml) <span className="muted">optional</span><input aria-label="Expressed volume ml" type="number" min="0" inputMode="numeric" value={pumpAmount} onChange={(event) => setPumpAmount(event.target.value)} /></label><div className="active-actions"><button className="secondary small" onClick={() => setFinishingPump(null)}>Cancel</button><button className="stop-button" onClick={() => { const payload = stoppedPayload(record); if (payload.record_type === "pumping") payload.expressed_ml = pumpAmount ? Number(pumpAmount) : null; update.mutate({ record, payload }); setFinishingPump(null); setPumpAmount(""); }}><Square /> Stop & save</button></div></div> : <button className="stop-button" onClick={() => { setFinishingPump(record.id); setPumpAmount(String(record.details.expressed_ml ?? "")); }}><Square /> Stop</button>)}
-              {menu === record.id && <div className="record-menu"><button onClick={() => { if (window.confirm("Delete this care record?")) remove.mutate(record); setMenu(null); }}>Delete record</button></div>}
+              {menu === record.id && <div className="record-menu"><button className="edit-record-button" onClick={() => { setEditing(record); setMenu(null); }}>Edit record</button><button onClick={() => { if (window.confirm("Delete this care record?")) remove.mutate(record); setMenu(null); }}>Delete record</button></div>}
             </div>
           </article>
         );
       })}
     </div>
-  );
+    {editing && <EditRecordSheet record={editing} onClose={() => setEditing(null)} />}
+  </>;
 }
