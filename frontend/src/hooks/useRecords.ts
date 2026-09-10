@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, ApiError } from "../api/client";
+import { invalidateCareRecordQueries } from "../api/cache";
 import type { CareRecord, CareRecordCreate, TimelineRecord } from "../api/types";
 import {
   cachedRecords,
@@ -81,12 +82,7 @@ export function useCreateRecord(babyId: string) {
         return pendingRecord(identified, mutationId);
       }
     },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
-        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
-      ]);
-    },
+    onSuccess: () => invalidateCareRecordQueries(queryClient, babyId),
   });
 }
 
@@ -95,20 +91,12 @@ export function useUpdateRecord(babyId: string) {
   return useMutation({
     mutationFn: ({ record, payload }: { record: CareRecord; payload: CareRecordCreate }) =>
       api.updateRecord(record.id, record.revision, payload),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
-        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
-      ]);
-    },
+    onSuccess: () => invalidateCareRecordQueries(queryClient, babyId),
     onError: async (error) => {
       if (!(error instanceof ApiError) || error.status !== 409 || error.detail !== "stale_revision") {
         return;
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
-        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
-      ]);
+      await invalidateCareRecordQueries(queryClient, babyId);
     },
   });
 }
@@ -117,11 +105,11 @@ export function useDeleteRecord(babyId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (record: CareRecord) => api.deleteRecord(record.id, record.revision),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["records", babyId] }),
-        queryClient.invalidateQueries({ queryKey: ["history-records", babyId] }),
-      ]);
+    onSuccess: () => invalidateCareRecordQueries(queryClient, babyId),
+    onError: async (error) => {
+      if (error instanceof ApiError && error.status === 409 && error.detail === "stale_revision") {
+        await invalidateCareRecordQueries(queryClient, babyId);
+      }
     },
   });
 }

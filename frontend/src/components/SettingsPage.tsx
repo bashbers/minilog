@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
+import { invalidateCareRecordQueries } from "../api/cache";
 import type { Baby, Caregiver, PiyoLogPreview, QuickActionPreference } from "../api/types";
 import { careAction } from "../careActions";
 import { clearLocalData } from "../offline/store";
@@ -65,7 +66,6 @@ function QuickActionsCard() {
     });
   };
 
-  const visibleCount = draft.filter((item) => !item.is_hidden).length;
   return (
     <section className="settings-card span-two">
       <div className="card-title"><ListChecks /><div><h2>Quick actions</h2><p>Choose what appears in the add sheet and put frequent actions first.</p></div></div>
@@ -80,7 +80,7 @@ function QuickActionsCard() {
                 <input
                   type="checkbox"
                   checked={!preference.is_hidden}
-                  disabled={!preference.is_hidden && visibleCount === 1}
+                  aria-label={`Show ${action.label}`}
                   onChange={(event) => setDraft((current) => current.map((item) => item.record_type === preference.record_type ? { ...item, is_hidden: !event.target.checked } : item))}
                 />
                 <span>Show</span>
@@ -148,8 +148,7 @@ function ImportCard({ baby }: { baby: Baby }) {
     onSuccess: async () => {
       setPreview(null);
       setFile(null);
-      await queryClient.invalidateQueries({ queryKey: ["records", baby.id] });
-      await queryClient.invalidateQueries({ queryKey: ["history-records", baby.id] });
+      await invalidateCareRecordQueries(queryClient, baby.id);
       await queryClient.invalidateQueries({ queryKey: ["imported-daily-notes", baby.id] });
       await queryClient.invalidateQueries({ queryKey: ["imports"] });
     },

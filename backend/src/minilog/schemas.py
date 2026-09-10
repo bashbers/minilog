@@ -108,15 +108,6 @@ class QuickActionPreferencesUpdate(APIModel):
         record_types = [action.record_type for action in self.actions]
         if len(record_types) != len(set(record_types)):
             raise ValueError("quick action record types must be unique")
-        native_record_types = {
-            record_type
-            for record_type in RecordType
-            if record_type is not RecordType.IMPORTED_CARE_RECORD
-        }
-        if set(record_types) == native_record_types and all(
-            action.is_hidden for action in self.actions
-        ):
-            raise ValueError("at least one quick action must remain visible")
         return self
 
 
@@ -316,8 +307,7 @@ class CareRecordOut(APIModel):
 
 class CareRecordPage(APIModel):
     items: list[CareRecordOut]
-    next_before: int | None = None
-    next_before_id: UUID | None = None
+    next_cursor: str | None = None
 
 
 class CareRecordUpdate(APIModel):

@@ -17,7 +17,10 @@ export type Invitation = components["schemas"]["InvitationOut"];
 export type InvitationAccept = components["schemas"]["InvitationAccept"];
 export type DeviceSession = components["schemas"]["DeviceSessionOut"];
 export type ImportedDailyNote = components["schemas"]["ImportedDailyNoteOut"];
-export type QuickActionPreference = components["schemas"]["QuickActionPreferenceOut"];
+export type QuickActionPreference = Omit<
+  components["schemas"]["QuickActionPreferenceOut"],
+  "record_type"
+> & { record_type: CareRecordCreate["record_type"] };
 export type QuickActionPreferencesUpdate = components["schemas"]["QuickActionPreferencesUpdate"];
 
 export type CareRecordCreate =

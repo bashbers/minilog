@@ -31,8 +31,7 @@ export class ApiError extends Error {
 }
 
 export interface RecordListOptions {
-  before?: number;
-  beforeId?: string;
+  cursor?: string;
   recordTypes?: CareRecord["record_type"][];
   dateFrom?: string;
   dateTo?: string;
@@ -97,8 +96,7 @@ export const api = {
       baby_id: babyId,
       limit: String(options.limit ?? 200),
     });
-    if (options.before !== undefined) parameters.set("before", String(options.before));
-    if (options.beforeId) parameters.set("before_id", options.beforeId);
+    if (options.cursor) parameters.set("cursor", options.cursor);
     if (options.dateFrom) parameters.set("date_from", options.dateFrom);
     if (options.dateTo) parameters.set("date_to", options.dateTo);
     options.recordTypes?.forEach((recordType) =>

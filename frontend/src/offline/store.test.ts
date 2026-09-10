@@ -48,7 +48,7 @@ test("keeps only seven recent days in the offline timeline cache", async () => {
       record(new Date().toISOString(), "recent"),
       record(new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), "old"),
     ],
-    next_before: null,
+    next_cursor: null,
   };
   await cacheRecords(babyId, page);
   const cached = await cachedRecords(babyId);

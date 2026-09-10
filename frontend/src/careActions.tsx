@@ -27,17 +27,17 @@ function BabyDiaperIcon(_props: Pick<AriaAttributes, "aria-hidden">) {
 
 export const careActions: CareAction[] = [
   { kind: "breastfeeding", label: "Breastfeed", icon: Milk },
-  { kind: "bottle_feeding", label: "Bottle", icon: TestTubeDiagonal },
+  { kind: "bottle_feeding", label: "Bottle feeding", icon: TestTubeDiagonal },
   { kind: "solid_food_feeding", label: "Solid food", icon: Beef },
   { kind: "sleep", label: "Sleep", icon: Bed },
-  { kind: "diaper_change", label: "Diaper", icon: BabyDiaperIcon },
+  { kind: "diaper_change", label: "Diaper change", icon: BabyDiaperIcon },
   { kind: "pumping", label: "Pumping", icon: Scale },
   { kind: "measurement", label: "Measurement", icon: Ruler },
   { kind: "medication_administration", label: "Medicine", icon: Pill },
   { kind: "note", label: "Note", icon: BookHeart },
 ];
 
-const actionsByKind = new Map<string, CareAction>(
+const actionsByKind = new Map<CareActionKind, CareAction>(
   careActions.map((action) => [action.kind, action]),
 );
 
@@ -51,7 +51,7 @@ export function orderedCareActions(
     .filter((action): action is CareAction => action !== undefined);
 }
 
-export function careAction(kind: string): CareAction {
+export function careAction(kind: CareActionKind): CareAction {
   const action = actionsByKind.get(kind);
   if (!action) throw new Error(`Unknown care action: ${kind}`);
   return action;

@@ -207,8 +207,7 @@ def test_timeline_pagination_does_not_skip_equal_timestamps() -> None:
             )
         ).json()
         assert len(first["items"]) == 2
-        assert first["next_before"] is not None
-        assert first["next_before_id"] is not None
+        assert first["next_cursor"] is not None
 
         second = (
             await client.get(
@@ -216,14 +215,20 @@ def test_timeline_pagination_does_not_skip_equal_timestamps() -> None:
                 params={
                     "baby_id": baby_id,
                     "limit": 2,
-                    "before": first["next_before"],
-                    "before_id": first["next_before_id"],
+                    "cursor": first["next_cursor"],
                 },
             )
         ).json()
         combined_ids = [item["id"] for item in first["items"] + second["items"]]
         assert len(combined_ids) == 3
         assert set(combined_ids) == set(record_ids)
+
+        invalid = await client.get(
+            "/api/v1/care-records",
+            params={"baby_id": baby_id, "cursor": "not-a-valid-cursor"},
+        )
+        assert invalid.status_code == 422
+        assert invalid.json()["detail"] == "invalid_page_cursor"
 
     asyncio.run(with_client(scenario))
 
@@ -428,7 +433,8 @@ def test_quick_action_preferences_are_ordered_hidden_and_extensible() -> None:
                 ]
             },
         )
-        assert none_visible.status_code == 422
+        assert none_visible.status_code == 200
+        assert all(item["is_hidden"] for item in none_visible.json())
 
     asyncio.run(with_client(scenario))
 

@@ -54,6 +54,8 @@ textarea { resize: vertical; }
 .icon-button { width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center; }
 .icon-button:hover { background: var(--surface-2); color: var(--text); }
 .error { color: var(--danger); background: #3c1d24; padding: .8rem 1rem; border-radius: .8rem; }
+.offline-notice { color: var(--muted); margin: .7rem 0 0; font-size: .78rem; }
+.inline-error { margin: .7rem 0 0; font-size: .78rem; }
 .auth-switch { width: 100%; min-height: 3rem; margin-top: .8rem; color: var(--accent-strong); background: transparent; font-weight: 750; }
 
 .app-shell { width: min(100%, 54rem); min-height: 100dvh; margin: 0 auto; border-inline: 1px solid #ffffff08; padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
@@ -132,6 +134,8 @@ textarea { resize: vertical; }
 .action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; padding: .8rem 0 1rem; }
 .care-action { min-height: 6.3rem; padding: .7rem; border-radius: 1rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); display: grid; place-items: center; gap: .45rem; font-weight: 750; }
 .care-action svg, .emoji-icon { width: 1.6rem; color: var(--accent); }
+.quick-actions-empty { display: grid; gap: .8rem; }
+.quick-actions-empty .secondary { margin-top: .25rem; text-decoration: none; }
 .care-form { margin-top: .5rem; }
 .compact-stack { margin-top: 0; gap: .7rem; }
 .interval-fields { display: grid; grid-template-columns: .65fr 1.25fr 1.25fr; gap: .6rem; padding: .7rem; border-radius: .8rem; background: var(--surface-2); }

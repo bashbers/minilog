@@ -25,7 +25,6 @@ function diaper(hoursAgo: number): TimelineRecord {
 test("shows factual seven-day totals and the medical boundary", () => {
   render(<Trends records={[diaper(1), diaper(25)]} />);
 
-  expect(screen.getByRole("heading", { name: "Diapers" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Diaper changes" })).toBeInTheDocument();
   expect(screen.getByText("Charts summarize what caregivers entered. They do not assess health or development.")).toBeInTheDocument();
 });
-

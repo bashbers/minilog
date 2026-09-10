@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { synchronize } from "../offline/sync";
+import { invalidateCareRecordQueries } from "../api/cache";
 
 export function useForegroundSync() {
   const queryClient = useQueryClient();
@@ -13,10 +14,7 @@ export function useForegroundSync() {
       try {
         const result = await synchronize();
         if (result.changed) {
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["records"] }),
-            queryClient.invalidateQueries({ queryKey: ["history-records"] }),
-          ]);
+          await invalidateCareRecordQueries(queryClient);
         }
       } catch {
         // The next foreground poll retries. Care data never enters console output.

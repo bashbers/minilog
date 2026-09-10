@@ -140,18 +140,16 @@ function HistoryPage({ baby }: { baby: Baby }) {
       : [filter as TimelineRecord["record_type"]];
   const history = useInfiniteQuery({
     queryKey: ["history-records", baby.id, filter, dateFrom, dateTo],
-    initialPageParam: {} as { before?: number; beforeId?: string },
+    initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => api.records(baby.id, {
-      before: pageParam.before,
-      beforeId: pageParam.beforeId,
+      cursor: pageParam,
       recordTypes,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       limit: 50,
     }),
     getNextPageParam: (lastPage) => {
-      if (lastPage.next_before == null || !lastPage.next_before_id) return undefined;
-      return { before: lastPage.next_before, beforeId: lastPage.next_before_id };
+      return lastPage.next_cursor ?? undefined;
     },
   });
   const visible = history.data?.pages.flatMap((page) => page.items) ?? [];
@@ -159,7 +157,7 @@ function HistoryPage({ baby }: { baby: Baby }) {
     <main className="page">
       <div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div></div>
       <div className="history-filters" aria-label="History filters">
-        <label>Care type<select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+        <label>Care type<select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note", "imported_care_record"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
         <label>From<input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} /></label>
         <label>To<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} /></label>
       </div>
@@ -190,7 +188,7 @@ function DailySummary({ records }: { records: TimelineRecord[] }) {
   const feeds = records.filter((record) => record.record_type.includes("feeding")).length;
   const sleep = records.filter((record) => record.record_type === "sleep").reduce((sum, record) => sum + Math.max(0, (new Date(record.ended_at ?? Date.now()).getTime() - new Date(record.occurred_at).getTime()) / 3_600_000), 0);
   const diapers = records.filter((record) => record.record_type === "diaper_change").length;
-  return <section className="daily-summary" aria-label="Today's totals"><div><span>Feeds</span><strong>{feeds}</strong></div><div><span>Sleep</span><strong>{sleep.toFixed(1)}h</strong></div><div><span>Diapers</span><strong>{diapers}</strong></div></section>;
+  return <section className="daily-summary" aria-label="Today's totals"><div><span>Feeds</span><strong>{feeds}</strong></div><div><span>Sleep</span><strong>{sleep.toFixed(1)}h</strong></div><div><span>Diaper changes</span><strong>{diapers}</strong></div></section>;
 }
 
 export function App() {

@@ -1,4 +1,6 @@
 import json
+from base64 import b64decode, b64encode
+from binascii import Error as Base64Error
 from datetime import date, datetime, time, timedelta
 from typing import Annotated
 from uuid import UUID
@@ -25,6 +27,24 @@ from minilog.services.care_records import (
 router = APIRouter(tags=["care records"])
 
 
+def encode_page_cursor(record: CareRecord) -> str:
+    position = f"{record.occurred_at_utc}:{record.id}".encode()
+    return b64encode(position, altchars=b"-_").decode().rstrip("=")
+
+
+def decode_page_cursor(cursor: str) -> tuple[int, str]:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        decoded = b64decode(cursor + padding, altchars=b"-_", validate=True).decode()
+        occurred_at, record_id = decoded.split(":", maxsplit=1)
+        occurred_at_ms = int(occurred_at)
+        if occurred_at_ms < 0:
+            raise ValueError
+        return occurred_at_ms, str(UUID(record_id))
+    except (Base64Error, UnicodeDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="invalid_page_cursor") from exc
+
+
 def get_record_or_404(db: Database, record_id: str) -> CareRecord:
     record = db.get(CareRecord, record_id)
     if record is None or record.deleted_at is not None:
@@ -37,8 +57,7 @@ async def list_care_records(
     baby_id: UUID,
     _caregiver: CurrentCaregiver,
     db: Database,
-    before: int | None = None,
-    before_id: UUID | None = None,
+    cursor: Annotated[str | None, Query(max_length=128)] = None,
     record_type: Annotated[list[RecordType] | None, Query()] = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -46,8 +65,6 @@ async def list_care_records(
 ) -> CareRecordPage:
     if db.get(Baby, str(baby_id)) is None:
         raise HTTPException(status_code=404, detail="baby_not_found")
-    if before_id is not None and before is None:
-        raise HTTPException(status_code=422, detail="before_id_requires_before")
     if date_from is not None and date_to is not None and date_from > date_to:
         raise HTTPException(status_code=422, detail="invalid_occurrence_range")
     household = db.scalar(select(Household))
@@ -60,19 +77,17 @@ async def list_care_records(
         .order_by(CareRecord.occurred_at_utc.desc(), CareRecord.id.desc())
         .limit(limit + 1)
     )
-    if before is not None:
-        if before_id is None:
-            statement = statement.where(CareRecord.occurred_at_utc < before)
-        else:
-            statement = statement.where(
-                or_(
-                    CareRecord.occurred_at_utc < before,
-                    and_(
-                        CareRecord.occurred_at_utc == before,
-                        CareRecord.id < str(before_id),
-                    ),
-                )
+    if cursor is not None:
+        before, before_id = decode_page_cursor(cursor)
+        statement = statement.where(
+            or_(
+                CareRecord.occurred_at_utc < before,
+                and_(
+                    CareRecord.occurred_at_utc == before,
+                    CareRecord.id < before_id,
+                ),
             )
+        )
     if record_type:
         statement = statement.where(CareRecord.record_type.in_(record_type))
     if date_from is not None:
@@ -88,12 +103,9 @@ async def list_care_records(
     records = list(db.scalars(statement).all())
     has_more = len(records) > limit
     records = records[:limit]
-    next_before = records[-1].occurred_at_utc if has_more and records else None
-    next_before_id = records[-1].id if has_more and records else None
     return CareRecordPage(
         items=[to_output(db, record) for record in records],
-        next_before=next_before,
-        next_before_id=next_before_id,
+        next_cursor=encode_page_cursor(records[-1]) if has_more and records else None,
     )
 
 

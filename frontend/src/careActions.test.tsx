@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { QuickActionPreference } from "./api/types";
 import { careActions, orderedCareActions } from "./careActions";
+import { careRecordForms } from "./careRecordForms";
+
+it("defines a form adapter for every native care-record action", () => {
+  expect(Object.keys(careRecordForms).sort()).toEqual(
+    careActions.map((action) => action.kind).sort(),
+  );
+});
 
 describe("orderedCareActions", () => {
   it("uses the product defaults until preferences have loaded", () => {
@@ -21,5 +28,15 @@ describe("orderedCareActions", () => {
       "sleep",
       "note",
     ]);
+  });
+
+  it("allows a caregiver to hide every quick action", () => {
+    const hidden = careActions.map((action, position) => ({
+      record_type: action.kind,
+      position,
+      is_hidden: true,
+    }));
+
+    expect(orderedCareActions(hidden)).toEqual([]);
   });
 });

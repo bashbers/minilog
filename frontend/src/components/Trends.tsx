@@ -10,9 +10,9 @@ interface Metric {
 
 const metrics: Metric[] = [
   { label: "Sleep", matches: (r) => r.record_type === "sleep", value: (r) => durationMinutes(r.occurred_at, r.ended_at), suffix: "min" },
-  { label: "Bottle", matches: (r) => r.record_type === "bottle_feeding", value: (r) => Number(r.details.consumed_ml) || 0, suffix: "ml" },
+  { label: "Bottle feeding", matches: (r) => r.record_type === "bottle_feeding", value: (r) => Number(r.details.consumed_ml) || 0, suffix: "ml" },
   { label: "Feeds", matches: (r) => ["breastfeeding", "bottle_feeding", "solid_food_feeding"].includes(r.record_type), value: () => 1, suffix: "" },
-  { label: "Diapers", matches: (r) => r.record_type === "diaper_change", value: () => 1, suffix: "" },
+  { label: "Diaper changes", matches: (r) => r.record_type === "diaper_change", value: () => 1, suffix: "" },
   { label: "Pumping", matches: (r) => r.record_type === "pumping", value: (r) => Number(r.details.expressed_ml) || 0, suffix: "ml" },
 ];
 
@@ -49,4 +49,3 @@ export function Trends({ records }: { records: TimelineRecord[] }) {
     </div>
   );
 }
-

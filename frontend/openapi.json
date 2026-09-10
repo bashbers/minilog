@@ -2286,36 +2286,20 @@
             }
           },
           {
-            "name": "before",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Before"
-            }
-          },
-          {
-            "name": "before_id",
+            "name": "cursor",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
                   "type": "string",
-                  "format": "uuid"
+                  "maxLength": 128
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Before Id"
+              "title": "Cursor"
             }
           },
           {
@@ -3478,28 +3462,16 @@
             "type": "array",
             "title": "Items"
           },
-          "next_before": {
+          "next_cursor": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Next Before"
-          },
-          "next_before_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Before Id"
+            "title": "Next Cursor"
           }
         },
         "type": "object",
