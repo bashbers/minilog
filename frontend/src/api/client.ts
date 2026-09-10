@@ -12,6 +12,8 @@ import type {
   InvitationAccept,
   LoginRequest,
   PiyoLogPreview,
+  QuickActionPreference,
+  QuickActionPreferencesUpdate,
   Session,
   SetupRequest,
   SetupStatus,
@@ -103,6 +105,13 @@ export const api = {
     return request<void>(`/babies/${babyId}/profile-picture`, { method: "PUT", body });
   },
   caregivers: () => request<Caregiver[]>("/caregivers"),
+  quickActions: () =>
+    request<QuickActionPreference[]>("/caregivers/current/quick-actions"),
+  updateQuickActions: (payload: QuickActionPreferencesUpdate) =>
+    request<QuickActionPreference[]>("/caregivers/current/quick-actions", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   createInvitation: () =>
     request<Invitation>("/invitations", {
       method: "POST",

@@ -1,9 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileUp, Link as LinkIcon, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Download,
+  FileUp,
+  Link as LinkIcon,
+  ListChecks,
+  ShieldCheck,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
-import type { Baby, Caregiver, PiyoLogPreview } from "../api/types";
+import type { Baby, Caregiver, PiyoLogPreview, QuickActionPreference } from "../api/types";
+import { careAction } from "../careActions";
 import { clearLocalData } from "../offline/store";
 
 export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Caregiver }) {
@@ -14,6 +25,7 @@ export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Careg
         <div><p className="eyebrow">Private household</p><h1>Settings</h1></div>
       </div>
       <div className="settings-grid">
+        <QuickActionsCard />
         <DeviceCard />
         {owner && <CaregiverCard />}
         {owner && <ImportCard baby={baby} />}
@@ -21,6 +33,71 @@ export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Careg
         {owner && <DangerCard baby={baby} />}
       </div>
     </main>
+  );
+}
+
+function QuickActionsCard() {
+  const queryClient = useQueryClient();
+  const preferences = useQuery({ queryKey: ["quick-actions"], queryFn: api.quickActions });
+  const [draft, setDraft] = useState<QuickActionPreference[]>([]);
+  const save = useMutation({
+    mutationFn: () =>
+      api.updateQuickActions({
+        actions: draft.map(({ record_type, is_hidden }) => ({ record_type, is_hidden })),
+      }),
+    onSuccess: (actions) => {
+      setDraft(actions);
+      queryClient.setQueryData(["quick-actions"], actions);
+    },
+  });
+
+  useEffect(() => {
+    if (preferences.data) setDraft(preferences.data);
+  }, [preferences.data]);
+
+  const move = (index: number, delta: -1 | 1) => {
+    setDraft((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const reordered = [...current];
+      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+      return reordered.map((item, position) => ({ ...item, position }));
+    });
+  };
+
+  const visibleCount = draft.filter((item) => !item.is_hidden).length;
+  return (
+    <section className="settings-card span-two">
+      <div className="card-title"><ListChecks /><div><h2>Quick actions</h2><p>Choose what appears in the add sheet and put frequent actions first.</p></div></div>
+      <div className="quick-action-list">
+        {draft.map((preference, index) => {
+          const action = careAction(preference.record_type);
+          const Icon = action.icon;
+          return (
+            <div className="quick-action-row" key={preference.record_type}>
+              <div className="quick-action-name"><Icon aria-hidden="true" /><strong>{action.label}</strong></div>
+              <label className="quick-action-visible">
+                <input
+                  type="checkbox"
+                  checked={!preference.is_hidden}
+                  disabled={!preference.is_hidden && visibleCount === 1}
+                  onChange={(event) => setDraft((current) => current.map((item) => item.record_type === preference.record_type ? { ...item, is_hidden: !event.target.checked } : item))}
+                />
+                <span>Show</span>
+              </label>
+              <div className="quick-action-order">
+                <button type="button" className="secondary icon-button" disabled={index === 0} aria-label={`Move ${action.label} up`} onClick={() => move(index, -1)}><ArrowUp /></button>
+                <button type="button" className="secondary icon-button" disabled={index === draft.length - 1} aria-label={`Move ${action.label} down`} onClick={() => move(index, 1)}><ArrowDown /></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {preferences.isError && <p className="error" role="alert">Could not load quick actions.</p>}
+      {save.isError && <p className="error" role="alert">Could not save quick actions.</p>}
+      {save.isSuccess && <p className="save-confirmation" role="status">Quick actions saved.</p>}
+      <button className="primary" disabled={!draft.length || save.isPending} onClick={() => save.mutate()}>Save quick actions</button>
+    </section>
   );
 }
 

@@ -160,6 +160,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/caregivers/current/quick-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Quick Actions */
+        get: operations["get_quick_actions_api_v1_caregivers_current_quick_actions_get"];
+        /** Put Quick Actions */
+        put: operations["put_quick_actions_api_v1_caregivers_current_quick_actions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/caregivers/{caregiver_id}": {
         parameters: {
             query?: never;
@@ -1056,6 +1074,31 @@ export interface components {
             /** Expressed Ml */
             expressed_ml?: number | null;
         };
+        /** QuickActionPreferenceInput */
+        QuickActionPreferenceInput: {
+            record_type: components["schemas"]["RecordType"];
+            /**
+             * Is Hidden
+             * @default false
+             */
+            is_hidden: boolean;
+        };
+        /** QuickActionPreferenceOut */
+        QuickActionPreferenceOut: {
+            record_type: components["schemas"]["RecordType"];
+            /**
+             * Is Hidden
+             * @default false
+             */
+            is_hidden: boolean;
+            /** Position */
+            position: number;
+        };
+        /** QuickActionPreferencesUpdate */
+        QuickActionPreferencesUpdate: {
+            /** Actions */
+            actions?: components["schemas"]["QuickActionPreferenceInput"][];
+        };
         /**
          * RecordType
          * @enum {string}
@@ -1548,6 +1591,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaregiverOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quick_actions_api_v1_caregivers_current_quick_actions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickActionPreferenceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_quick_actions_api_v1_caregivers_current_quick_actions_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickActionPreferencesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickActionPreferenceOut"][];
                 };
             };
             /** @description Validation Error */

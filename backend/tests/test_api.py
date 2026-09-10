@@ -280,6 +280,68 @@ def test_invitation_is_one_time_and_device_revocation_is_scoped() -> None:
     asyncio.run(with_client(scenario))
 
 
+def test_quick_action_preferences_are_ordered_hidden_and_extensible() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+
+        defaults = (await client.get("/api/v1/caregivers/current/quick-actions")).json()
+        assert len(defaults) == 9
+        assert defaults[0] == {
+            "record_type": "breastfeeding",
+            "position": 0,
+            "is_hidden": False,
+        }
+        assert all(item["record_type"] != "imported_care_record" for item in defaults)
+
+        updated = await client.put(
+            "/api/v1/caregivers/current/quick-actions",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "actions": [
+                    {"record_type": "sleep", "is_hidden": False},
+                    {"record_type": "diaper_change", "is_hidden": True},
+                ]
+            },
+        )
+        assert updated.status_code == 200, updated.text
+        preferences = updated.json()
+        assert [item["position"] for item in preferences] == list(range(9))
+        assert preferences[:2] == [
+            {"record_type": "sleep", "position": 0, "is_hidden": False},
+            {"record_type": "diaper_change", "position": 1, "is_hidden": True},
+        ]
+        assert len({item["record_type"] for item in preferences}) == 9
+
+        fetched = await client.get("/api/v1/caregivers/current/quick-actions")
+        assert fetched.json() == preferences
+
+        invalid = await client.put(
+            "/api/v1/caregivers/current/quick-actions",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "actions": [
+                    {"record_type": "sleep", "is_hidden": False},
+                    {"record_type": "sleep", "is_hidden": True},
+                ]
+            },
+        )
+        assert invalid.status_code == 422
+
+        none_visible = await client.put(
+            "/api/v1/caregivers/current/quick-actions",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "actions": [
+                    {"record_type": item["record_type"], "is_hidden": True}
+                    for item in defaults
+                ]
+            },
+        )
+        assert none_visible.status_code == 422
+
+    asyncio.run(with_client(scenario))
+
+
 def test_destructive_deletion_requires_exact_confirmation() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf = await setup_owner(client)

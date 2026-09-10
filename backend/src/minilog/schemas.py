@@ -78,6 +78,42 @@ class PasswordChange(APIModel):
     new_password: str = Field(min_length=12, max_length=1024)
 
 
+class QuickActionPreferenceInput(APIModel):
+    record_type: RecordType
+    is_hidden: bool = False
+
+    @field_validator("record_type")
+    @classmethod
+    def native_record_type(cls, value: RecordType) -> RecordType:
+        if value is RecordType.IMPORTED_CARE_RECORD:
+            raise ValueError("imported records cannot be quick actions")
+        return value
+
+
+class QuickActionPreferencesUpdate(APIModel):
+    actions: list[QuickActionPreferenceInput] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def record_types_are_unique(self) -> QuickActionPreferencesUpdate:
+        record_types = [action.record_type for action in self.actions]
+        if len(record_types) != len(set(record_types)):
+            raise ValueError("quick action record types must be unique")
+        native_record_types = {
+            record_type
+            for record_type in RecordType
+            if record_type is not RecordType.IMPORTED_CARE_RECORD
+        }
+        if set(record_types) == native_record_types and all(
+            action.is_hidden for action in self.actions
+        ):
+            raise ValueError("at least one quick action must remain visible")
+        return self
+
+
+class QuickActionPreferenceOut(QuickActionPreferenceInput):
+    position: int = Field(ge=0)
+
+
 class HouseholdOut(APIModel):
     id: UUID
     display_name: str

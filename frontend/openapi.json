@@ -641,6 +641,168 @@
         }
       }
     },
+    "/api/v1/caregivers/current/quick-actions": {
+      "get": {
+        "tags": [
+          "caregivers and devices"
+        ],
+        "summary": "Get Quick Actions",
+        "operationId": "get_quick_actions_api_v1_caregivers_current_quick_actions_get",
+        "parameters": [
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickActionPreferenceOut"
+                  },
+                  "title": "Response Get Quick Actions Api V1 Caregivers Current Quick Actions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "caregivers and devices"
+        ],
+        "summary": "Put Quick Actions",
+        "operationId": "put_quick_actions_api_v1_caregivers_current_quick_actions_put",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickActionPreferencesUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickActionPreferenceOut"
+                  },
+                  "title": "Response Put Quick Actions Api V1 Caregivers Current Quick Actions Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/caregivers/{caregiver_id}": {
       "delete": {
         "tags": [
@@ -4338,6 +4500,60 @@
           "record_type"
         ],
         "title": "PumpingCreate"
+      },
+      "QuickActionPreferenceInput": {
+        "properties": {
+          "record_type": {
+            "$ref": "#/components/schemas/RecordType"
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "title": "Is Hidden",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_type"
+        ],
+        "title": "QuickActionPreferenceInput"
+      },
+      "QuickActionPreferenceOut": {
+        "properties": {
+          "record_type": {
+            "$ref": "#/components/schemas/RecordType"
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "title": "Is Hidden",
+            "default": false
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_type",
+          "position"
+        ],
+        "title": "QuickActionPreferenceOut"
+      },
+      "QuickActionPreferencesUpdate": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/QuickActionPreferenceInput"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "title": "QuickActionPreferencesUpdate"
       },
       "RecordType": {
         "type": "string",

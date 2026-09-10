@@ -1,43 +1,22 @@
-import {
-  Beef,
-  Bed,
-  BookHeart,
-  Milk,
-  Pill,
-  Ruler,
-  Scale,
-  TestTubeDiagonal,
-} from "lucide-react";
-import type { AriaAttributes, ComponentType, FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { FormEvent } from "react";
 import { useState } from "react";
 
+import { api } from "../api/client";
 import type { CareRecordCreate } from "../api/types";
+import { careAction, orderedCareActions, type CareActionKind } from "../careActions";
 import { useCreateRecord } from "../hooks/useRecords";
 import { localDateTimeValue, localOffsetMinutes, toTimestamp } from "../lib/time";
 
-type Kind = CareRecordCreate["record_type"];
-
-type ActionIcon = ComponentType<Pick<AriaAttributes, "aria-hidden">>;
-
-const actions: { kind: Kind; label: string; icon: ActionIcon }[] = [
-  { kind: "breastfeeding", label: "Breastfeed", icon: Milk },
-  { kind: "bottle_feeding", label: "Bottle", icon: TestTubeDiagonal },
-  { kind: "solid_food_feeding", label: "Solid food", icon: Beef },
-  { kind: "sleep", label: "Sleep", icon: Bed },
-  { kind: "diaper_change", label: "Diaper", icon: BabyDiaperIcon },
-  { kind: "pumping", label: "Pumping", icon: Scale },
-  { kind: "measurement", label: "Measurement", icon: Ruler },
-  { kind: "medication_administration", label: "Medicine", icon: Pill },
-  { kind: "note", label: "Note", icon: BookHeart },
-];
-
-function BabyDiaperIcon(_props: Pick<AriaAttributes, "aria-hidden">) {
-  return <span aria-hidden="true" className="emoji-icon">◡</span>;
-}
-
 export function QuickAdd({ babyId, onClose }: { babyId: string; onClose: () => void }) {
-  const [kind, setKind] = useState<Kind | null>(null);
+  const [kind, setKind] = useState<CareActionKind | null>(null);
   const mutation = useCreateRecord(babyId);
+  const preferences = useQuery({
+    queryKey: ["quick-actions"],
+    queryFn: api.quickActions,
+    staleTime: 60_000,
+  });
+  const actions = orderedCareActions(preferences.data);
   const [occurredAt] = useState(() => localDateTimeValue());
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -142,7 +121,7 @@ export function QuickAdd({ babyId, onClose }: { babyId: string; onClose: () => v
       <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="Add care record" onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-handle" />
         <div className="sheet-header">
-          <div><p className="eyebrow">Quick add</p><h2>{kind ? actions.find((action) => action.kind === kind)?.label : "What happened?"}</h2></div>
+          <div><p className="eyebrow">Quick add</p><h2>{kind ? careAction(kind).label : "What happened?"}</h2></div>
           <button className="ghost icon-button" onClick={onClose} aria-label="Close">×</button>
         </div>
         {!kind ? (

@@ -158,6 +158,16 @@ legend { color: var(--muted); font-size: .8rem; }
 .list-row > div { display: grid; gap: .15rem; }
 .list-row span { color: var(--muted); font-size: .72rem; text-transform: capitalize; }
 .secondary.small { min-height: 2.5rem; padding: .4rem .7rem; }
+.quick-action-list { display: grid; gap: .5rem; }
+.quick-action-row { min-height: 4rem; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .75rem; padding: .55rem .65rem .55rem .85rem; border-radius: .9rem; background: var(--surface-2); }
+.quick-action-name { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.quick-action-name svg, .quick-action-name .emoji-icon { flex: 0 0 auto; width: 1.25rem; color: var(--accent); }
+.quick-action-visible { display: flex; align-items: center; gap: .4rem; min-height: 2.75rem; color: var(--muted); font-size: .76rem; }
+.quick-action-visible input { width: 1.25rem; min-height: 1.25rem; }
+.quick-action-order { display: flex; gap: .35rem; }
+.quick-action-order .icon-button { width: 2.75rem; height: 2.75rem; border-radius: .75rem; padding: .7rem; }
+.quick-action-order .icon-button:disabled { opacity: .3; cursor: not-allowed; }
+.save-confirmation { margin: 0; color: var(--mint); font-size: .82rem; }
 .secret-output { display: grid; gap: .4rem; padding: .8rem; border-radius: .8rem; color: var(--mint); background: #10241f; overflow-wrap: anywhere; }
 .secret-output span { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .secret-output code { color: var(--text); user-select: all; }
@@ -186,6 +196,9 @@ legend { color: var(--muted); font-size: .8rem; }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-card.span-two { grid-column: auto; }
   .danger-grid { grid-template-columns: 1fr; }
+  .quick-action-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .quick-action-visible { grid-column: 1; grid-row: 2; }
+  .quick-action-order { grid-column: 2; grid-row: 1 / span 2; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
