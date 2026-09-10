@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from sqlalchemy import MetaData, create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from minilog.config import get_settings
@@ -22,11 +22,13 @@ class Base(DeclarativeBase):
 
 settings = get_settings()
 
-if settings.database_url.startswith("sqlite:////"):
-    database_path = Path(settings.database_url.removeprefix("sqlite:////"))
-    database_path.parent.mkdir(parents=True, exist_ok=True)
-elif settings.database_url.startswith("sqlite:///./"):
-    database_path = Path(settings.database_url.removeprefix("sqlite:///"))
+database_url = make_url(settings.database_url)
+if (
+    database_url.get_backend_name() == "sqlite"
+    and database_url.database
+    and database_url.database != ":memory:"
+):
+    database_path = Path(database_url.database)
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
