@@ -1,5 +1,6 @@
 import type {
   Baby,
+  BabyActiveStatus,
   BabyCreate,
   CareRecord,
   CareRecordCreate,
@@ -25,6 +26,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly detail: string,
+    readonly current?: CareRecord,
   ) {
     super(detail);
   }
@@ -62,8 +64,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers,
   });
   if (!response.ok) {
-    const error = (await response.json().catch(() => ({}))) as { detail?: string };
-    throw new ApiError(response.status, error.detail ?? "request_failed");
+    const error = (await response.json().catch(() => ({}))) as {
+      detail?: string | { code?: string; current?: CareRecord };
+    };
+    const detail = typeof error.detail === "string" ? error.detail : error.detail?.code;
+    const current = typeof error.detail === "object" ? error.detail.current : undefined;
+    throw new ApiError(response.status, detail ?? "request_failed", current);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -78,6 +84,7 @@ export const api = {
   me: () => request<Caregiver>("/sessions/current"),
   logout: () => request<void>("/sessions/current", { method: "DELETE" }),
   babies: () => request<Baby[]>("/babies"),
+  babyActiveStatuses: () => request<BabyActiveStatus[]>("/care-records/active-status"),
   household: () => request<Household>("/household"),
   createBaby: (payload: BabyCreate) =>
     request<Baby>("/babies", { method: "POST", body: JSON.stringify(payload) }),

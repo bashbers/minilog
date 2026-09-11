@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { invalidateCareRecordQueries } from "../api/cache";
 import type { CareRecord, CareRecordCreate, TimelineRecord } from "../api/types";
+import { isTimelineRecord, timelineRecords } from "../careRecordForms";
 import {
   cachedRecords,
   cacheRecords,
@@ -26,7 +27,7 @@ function detailsFromPayload(payload: CareRecordCreate): Record<string, unknown> 
 
 function pendingRecord(payload: CareRecordCreate, mutationId: string): TimelineRecord {
   const now = new Date().toISOString();
-  return {
+  const record: CareRecord = {
     id: payload.id ?? mutationId,
     baby_id: payload.baby_id,
     record_type: payload.record_type,
@@ -40,8 +41,9 @@ function pendingRecord(payload: CareRecordCreate, mutationId: string): TimelineR
     updated_at: now,
     revision: 1,
     details: detailsFromPayload(payload),
-    queued: true,
   };
+  if (!isTimelineRecord(record)) throw new Error("Invalid queued care-record details");
+  return { ...record, queued: true };
 }
 
 export function useRecords(babyId: string) {
@@ -52,14 +54,14 @@ export function useRecords(babyId: string) {
       try {
         const page = await api.records(babyId);
         await cacheRecords(babyId, page);
-        return [...pending.map((item) => pendingRecord(item.payload, item.mutationId)), ...page.items]
+        return [...pending.map((item) => pendingRecord(item.payload, item.mutationId)), ...timelineRecords(page.items)]
           .sort(
             (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
           );
       } catch (error) {
         const cached = await cachedRecords(babyId);
         if (!cached) throw error;
-        return [...pending.map((item) => pendingRecord(item.payload, item.mutationId)), ...cached.items]
+        return [...pending.map((item) => pendingRecord(item.payload, item.mutationId)), ...timelineRecords(cached.items)]
           .sort(
             (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
           );

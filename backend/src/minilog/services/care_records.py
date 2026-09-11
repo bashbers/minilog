@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+from base64 import b64decode, b64encode
+from binascii import Error as Base64Error
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from minilog.models import (
+    Baby,
     BottleFeedingRecord,
     BreastfeedingInterval,
     BreastfeedingRecord,
     Caregiver,
     CareRecord,
     DiaperChangeRecord,
+    Household,
     ImportedCareRecord,
     MeasurementRecord,
     MedicationAdministrationRecord,
@@ -26,10 +33,12 @@ from minilog.models import (
     now_ms,
 )
 from minilog.schemas import (
+    BabyActiveStatus,
     BottleFeedingCreate,
     BreastfeedingCreate,
     CareRecordCreate,
     CareRecordOut,
+    CareRecordPage,
     DiaperChangeCreate,
     MeasurementCreate,
     MedicationAdministrationCreate,
@@ -37,9 +46,104 @@ from minilog.schemas import (
     PumpingCreate,
     SleepCreate,
     SolidFoodFeedingCreate,
+    StaleRevisionDetail,
     datetime_to_ms,
     ms_to_datetime,
 )
+
+
+def encode_page_cursor(record: CareRecord) -> str:
+    position = f"{record.occurred_at_utc}:{record.id}".encode()
+    return b64encode(position, altchars=b"-_").decode().rstrip("=")
+
+
+def decode_page_cursor(cursor: str) -> tuple[int, str]:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        decoded = b64decode(cursor + padding, altchars=b"-_", validate=True).decode()
+        occurred_at, record_id = decoded.split(":", maxsplit=1)
+        occurred_at_ms = int(occurred_at)
+        if occurred_at_ms < 0:
+            raise ValueError
+        return occurred_at_ms, str(UUID(record_id))
+    except (Base64Error, UnicodeDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="invalid_page_cursor") from exc
+
+
+def list_records(
+    db: Session,
+    baby_id: str,
+    *,
+    cursor: str | None,
+    record_types: list[RecordType] | None,
+    date_from: date | None,
+    date_to: date | None,
+    limit: int,
+) -> CareRecordPage:
+    if db.get(Baby, baby_id) is None:
+        raise HTTPException(status_code=404, detail="baby_not_found")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(status_code=422, detail="invalid_occurrence_range")
+    household = db.scalar(select(Household))
+    if household is None:
+        raise RuntimeError("configured Household is missing")
+    household_time_zone = ZoneInfo(household.time_zone)
+    statement = (
+        select(CareRecord)
+        .where(CareRecord.baby_id == baby_id, CareRecord.deleted_at.is_(None))
+        .order_by(CareRecord.occurred_at_utc.desc(), CareRecord.id.desc())
+        .limit(limit + 1)
+    )
+    if cursor is not None:
+        before, before_id = decode_page_cursor(cursor)
+        statement = statement.where(
+            or_(
+                CareRecord.occurred_at_utc < before,
+                and_(
+                    CareRecord.occurred_at_utc == before,
+                    CareRecord.id < before_id,
+                ),
+            )
+        )
+    if record_types:
+        statement = statement.where(CareRecord.record_type.in_(record_types))
+    if date_from is not None:
+        start = datetime.combine(date_from, time.min, tzinfo=household_time_zone)
+        statement = statement.where(
+            CareRecord.occurred_at_utc >= int(start.timestamp() * 1000)
+        )
+    if date_to is not None:
+        end = datetime.combine(
+            date_to + timedelta(days=1), time.min, tzinfo=household_time_zone
+        )
+        statement = statement.where(CareRecord.occurred_at_utc < int(end.timestamp() * 1000))
+    records = list(db.scalars(statement).all())
+    has_more = len(records) > limit
+    records = records[:limit]
+    return CareRecordPage(
+        items=[to_output(db, record) for record in records],
+        next_cursor=encode_page_cursor(records[-1]) if has_more and records else None,
+    )
+
+
+def active_statuses(db: Session) -> list[BabyActiveStatus]:
+    active_types = {RecordType.SLEEP, RecordType.BREASTFEEDING, RecordType.PUMPING}
+    records = db.execute(
+        select(CareRecord.baby_id, CareRecord.record_type)
+        .where(
+            CareRecord.record_type.in_(active_types),
+            CareRecord.ended_at_utc.is_(None),
+            CareRecord.deleted_at.is_(None),
+        )
+        .order_by(CareRecord.baby_id, CareRecord.record_type)
+    ).all()
+    grouped: dict[str, list[RecordType]] = {}
+    for baby_id, record_type in records:
+        grouped.setdefault(baby_id, []).append(record_type)
+    return [
+        BabyActiveStatus(baby_id=baby_id, active_types=record_types)
+        for baby_id, record_types in grouped.items()
+    ]
 
 
 def decimal_text(value: Decimal) -> str:
@@ -359,7 +463,10 @@ def update_record(
     if record.deleted_at is not None:
         raise HTTPException(status_code=404, detail="care_record_not_found")
     if record.revision != expected_revision:
-        raise HTTPException(status_code=409, detail="stale_revision")
+        raise HTTPException(
+            status_code=409,
+            detail=StaleRevisionDetail(current=to_output(db, record)).model_dump(mode="json"),
+        )
     if record.record_type is RecordType.IMPORTED_CARE_RECORD:
         raise HTTPException(status_code=409, detail="imported_record_read_only")
     if record.record_type != payload.record_type:
@@ -390,7 +497,10 @@ def tombstone_record(
     if record.deleted_at is not None:
         return record
     if record.revision != expected_revision:
-        raise HTTPException(status_code=409, detail="stale_revision")
+        raise HTTPException(
+            status_code=409,
+            detail=StaleRevisionDetail(current=to_output(db, record)).model_dump(mode="json"),
+        )
     if record.record_type is RecordType.IMPORTED_CARE_RECORD:
         raise HTTPException(status_code=409, detail="imported_record_read_only")
     record.deleted_at = now_ms()

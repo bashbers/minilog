@@ -181,7 +181,27 @@ def test_mutation_retry_and_revision_conflict_are_safe() -> None:
             json={"expected_revision": 1, "record": changed},
         )
         assert stale.status_code == 409
-        assert stale.json()["detail"] == "stale_revision"
+        assert stale.json()["detail"]["code"] == "stale_revision"
+        assert stale.json()["detail"]["current"]["revision"] == 2
+        assert stale.json()["detail"]["current"]["details"]["body"] == "Changed"
+
+        deleted = await client.delete(
+            f"/api/v1/care-records/{record_id}",
+            headers={"X-CSRF-Token": csrf},
+            params={"expected_revision": 2},
+        )
+        assert deleted.status_code == 204
+
+        timeline = (await client.get(
+            "/api/v1/care-records", params={"baby_id": baby_id}
+        )).json()
+        assert all(item["id"] != record_id for item in timeline["items"])
+        sync = (await client.get("/api/v1/sync")).json()
+        deletion = next(
+            change for change in sync["changes"] if change["entity_id"] == record_id
+            and change["operation"] == "delete"
+        )
+        assert deletion["revision"] == 3
 
     asyncio.run(with_client(scenario))
 
@@ -229,6 +249,24 @@ def test_timeline_pagination_does_not_skip_equal_timestamps() -> None:
         )
         assert invalid.status_code == 422
         assert invalid.json()["detail"] == "invalid_page_cursor"
+
+    asyncio.run(with_client(scenario))
+
+
+def test_active_status_exposes_only_cross_baby_indicator_metadata() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        created = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json=record_payload(baby_id, "sleep"),
+        )
+        assert created.status_code == 201
+
+        response = await client.get("/api/v1/care-records/active-status")
+        assert response.status_code == 200
+        assert response.json() == [{"baby_id": baby_id, "active_types": ["sleep"]}]
 
     asyncio.run(with_client(scenario))
 

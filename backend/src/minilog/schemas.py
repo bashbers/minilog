@@ -152,6 +152,11 @@ class BabyOut(APIModel):
     updated_at: int
 
 
+class BabyActiveStatus(APIModel):
+    baby_id: UUID
+    active_types: list[RecordType]
+
+
 class RecordInputBase(APIModel):
     id: UUID | None = None
     baby_id: UUID
@@ -308,6 +313,15 @@ class CareRecordOut(APIModel):
 class CareRecordPage(APIModel):
     items: list[CareRecordOut]
     next_cursor: str | None = None
+
+
+class StaleRevisionDetail(APIModel):
+    code: Literal["stale_revision"] = "stale_revision"
+    current: CareRecordOut
+
+
+class CareRecordConflictResponse(APIModel):
+    detail: StaleRevisionDetail | str
 
 
 class CareRecordUpdate(APIModel):

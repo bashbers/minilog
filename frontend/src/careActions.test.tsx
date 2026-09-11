@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import { vi } from "vitest";
 
+import { api } from "./api/client";
 import type { QuickActionPreference } from "./api/types";
 import { careActions, orderedCareActions } from "./careActions";
-import { careRecordForms } from "./careRecordForms";
+import { careRecordRegistry } from "./careRecordForms";
+import { QuickAdd } from "./components/QuickAdd";
 
 it("defines a form adapter for every native care-record action", () => {
-  expect(Object.keys(careRecordForms).sort()).toEqual(
+  expect(Object.keys(careRecordRegistry).sort()).toEqual(
     careActions.map((action) => action.kind).sort(),
   );
 });
@@ -39,4 +44,13 @@ describe("orderedCareActions", () => {
 
     expect(orderedCareActions(hidden)).toEqual([]);
   });
+});
+
+it("does not reveal default actions when caregiver preferences fail to load", async () => {
+  vi.spyOn(api, "quickActions").mockRejectedValue(new Error("offline"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><QuickAdd babyId="baby-id" onClose={() => undefined} /></QueryClientProvider>);
+
+  expect(await screen.findByText("Quick actions could not be loaded.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Bottle feeding" })).not.toBeInTheDocument();
 });

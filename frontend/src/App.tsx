@@ -5,6 +5,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, ApiError } from "./api/client";
 import type { Baby, Caregiver, TimelineRecord } from "./api/types";
+import { careActions, careRecordSummaryValues, careRecordTypesForGroup, timelineRecords } from "./careRecordForms";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { BabyOnboarding } from "./components/BabyOnboarding";
 import { QuickAdd } from "./components/QuickAdd";
@@ -37,6 +38,11 @@ function ErrorScreen() {
 function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   useForegroundSync();
   const babies = useQuery({ queryKey: ["babies"], queryFn: api.babies });
+  const activeStatuses = useQuery({
+    queryKey: ["baby-active-statuses"],
+    queryFn: api.babyActiveStatuses,
+    refetchInterval: 5_000,
+  });
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("selectedBaby"));
   const [quickAdd, setQuickAdd] = useState(false);
   const queryClient = useQueryClient();
@@ -61,6 +67,9 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   if (babies.isLoading) return <LoadingScreen />;
   if (!babies.data?.length) return <BabyOnboarding />;
   const baby = babies.data.find((item) => item.id === selectedId) ?? babies.data[0];
+  const activeByBaby = new Map(
+    (activeStatuses.data ?? []).map((status) => [status.baby_id, status.active_types.length]),
+  );
 
   const selectBaby = (id: string) => {
     setSelectedId(id);
@@ -74,8 +83,12 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
           <span className="sr-only">Selected Baby</span>
           <BabyPicture baby={baby} />
           <select value={baby.id} onChange={(event) => selectBaby(event.target.value)}>
-            {babies.data.map((item) => <option value={item.id} key={item.id}>{item.display_name}</option>)}
+            {babies.data.map((item) => {
+              const activeCount = activeByBaby.get(item.id) ?? 0;
+              return <option value={item.id} key={item.id}>{item.display_name}{activeCount ? ` · ${activeCount} active` : ""}</option>;
+            })}
           </select>
+          {(activeByBaby.get(baby.id) ?? 0) > 0 && <span className="active-baby-indicator">{activeByBaby.get(baby.id)} active</span>}
         </label>
         <label className="picture-upload" title="Change profile picture">
           <Upload aria-hidden="true" />
@@ -136,7 +149,7 @@ function HistoryPage({ baby }: { baby: Baby }) {
   const recordTypes: TimelineRecord["record_type"][] | undefined = filter === "all"
     ? undefined
     : filter === "feeding"
-      ? ["breastfeeding", "bottle_feeding", "solid_food_feeding"]
+      ? careRecordTypesForGroup("feeding")
       : [filter as TimelineRecord["record_type"]];
   const history = useInfiniteQuery({
     queryKey: ["history-records", baby.id, filter, dateFrom, dateTo],
@@ -152,12 +165,12 @@ function HistoryPage({ baby }: { baby: Baby }) {
       return lastPage.next_cursor ?? undefined;
     },
   });
-  const visible = history.data?.pages.flatMap((page) => page.items) ?? [];
+  const visible = timelineRecords(history.data?.pages.flatMap((page) => page.items) ?? []);
   return (
     <main className="page">
       <div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div></div>
       <div className="history-filters" aria-label="History filters">
-        <label>Care type<select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{["sleep", "diaper_change", "pumping", "measurement", "medication_administration", "note", "imported_care_record"].map((type) => <option value={type} key={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+        <label>Care type<select className="filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All care</option><option value="feeding">Feeding</option>{careActions.filter((action) => !careRecordTypesForGroup("feeding").includes(action.kind)).map((action) => <option value={action.kind} key={action.kind}>{action.label}</option>)}<option value="imported_care_record">Imported care record</option></select></label>
         <label>From<input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} /></label>
         <label>To<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} /></label>
       </div>
@@ -185,9 +198,10 @@ function TrendsPage({ baby }: { baby: Baby }) {
 }
 
 function DailySummary({ records }: { records: TimelineRecord[] }) {
-  const feeds = records.filter((record) => record.record_type.includes("feeding")).length;
-  const sleep = records.filter((record) => record.record_type === "sleep").reduce((sum, record) => sum + Math.max(0, (new Date(record.ended_at ?? Date.now()).getTime() - new Date(record.occurred_at).getTime()) / 3_600_000), 0);
-  const diapers = records.filter((record) => record.record_type === "diaper_change").length;
+  const summaryTotal = (key: string) => records.reduce((total, record) => total + careRecordSummaryValues(record).filter((summary) => summary.key === key).reduce((recordTotal, summary) => recordTotal + summary.value, 0), 0);
+  const feeds = summaryTotal("feeds");
+  const sleep = summaryTotal("sleep") / 60;
+  const diapers = summaryTotal("diaper_changes");
   return <section className="daily-summary" aria-label="Today's totals"><div><span>Feeds</span><strong>{feeds}</strong></div><div><span>Sleep</span><strong>{sleep.toFixed(1)}h</strong></div><div><span>Diaper changes</span><strong>{diapers}</strong></div></section>;
 }
 

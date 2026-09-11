@@ -2573,6 +2573,75 @@
         }
       }
     },
+    "/api/v1/care-records/active-status": {
+      "get": {
+        "tags": [
+          "care records"
+        ],
+        "summary": "List Active Statuses",
+        "operationId": "list_active_statuses_api_v1_care_records_active_status_get",
+        "parameters": [
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BabyActiveStatus"
+                  },
+                  "title": "Response List Active Statuses Api V1 Care Records Active Status Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/care-records/{record_id}": {
       "get": {
         "tags": [
@@ -2732,6 +2801,16 @@
               }
             }
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2822,6 +2901,16 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareRecordConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "description": "Validation Error",
@@ -2927,6 +3016,28 @@
   },
   "components": {
     "schemas": {
+      "BabyActiveStatus": {
+        "properties": {
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "active_types": {
+            "items": {
+              "$ref": "#/components/schemas/RecordType"
+            },
+            "type": "array",
+            "title": "Active Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baby_id",
+          "active_types"
+        ],
+        "title": "BabyActiveStatus"
+      },
       "BabyCreate": {
         "properties": {
           "display_name": {
@@ -3359,6 +3470,26 @@
           "started_at"
         ],
         "title": "BreastfeedingIntervalInput"
+      },
+      "CareRecordConflictResponse": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaleRevisionDetail"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "CareRecordConflictResponse"
       },
       "CareRecordOut": {
         "properties": {
@@ -4894,6 +5025,24 @@
           "foods"
         ],
         "title": "SolidFoodFeedingCreate"
+      },
+      "StaleRevisionDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "stale_revision",
+            "title": "Code",
+            "default": "stale_revision"
+          },
+          "current": {
+            "$ref": "#/components/schemas/CareRecordOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current"
+        ],
+        "title": "StaleRevisionDetail"
       },
       "SyncChangeOut": {
         "properties": {

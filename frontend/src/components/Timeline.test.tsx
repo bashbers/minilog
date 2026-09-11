@@ -19,7 +19,7 @@ const record: TimelineRecord = {
   created_at: "2026-09-09T10:00:00Z",
   updated_at: "2026-09-09T10:00:00Z",
   revision: 1,
-  details: { consumed_ml: 90, contents: "breast_milk" },
+  details: { consumed_ml: 90, offered_ml: null, contents: "breast_milk" },
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -76,7 +76,9 @@ test("does not offer edit or delete while offline", () => {
 
 test("shows a stale conflict when deletion loses a revision race", async () => {
   vi.spyOn(window, "confirm").mockReturnValue(true);
-  vi.spyOn(api, "deleteRecord").mockRejectedValue(new ApiError(409, "stale_revision"));
+  vi.spyOn(api, "deleteRecord").mockRejectedValue(
+    new ApiError(409, "stale_revision", { ...record, revision: 2 }),
+  );
   render(
     <QueryClientProvider client={new QueryClient()}>
       <Timeline records={[record]} babyId={record.baby_id} />
@@ -87,6 +89,6 @@ test("shows a stale conflict when deletion loses a revision race", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "This record changed on another device and was not deleted.",
+    "This record is now revision 2 and was not deleted.",
   );
 });

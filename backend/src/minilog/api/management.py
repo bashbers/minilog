@@ -2,7 +2,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from minilog.api.auth import session_response, set_session_cookies
 from minilog.config import get_settings
@@ -16,10 +16,8 @@ from minilog.dependencies import (
 from minilog.models import (
     AuthSession,
     Caregiver,
-    CaregiverQuickAction,
     CaregiverRole,
     Invitation,
-    RecordType,
     now_ms,
 )
 from minilog.schemas import (
@@ -41,45 +39,9 @@ from minilog.security import (
     normalize_username,
     verify_password,
 )
+from minilog.services.quick_actions import quick_actions_for, replace_quick_actions
 
 router = APIRouter(tags=["caregivers and devices"])
-
-QUICK_ACTION_TYPES = tuple(
-    record_type
-    for record_type in RecordType
-    if record_type is not RecordType.IMPORTED_CARE_RECORD
-)
-
-
-def quick_actions_for(
-    caregiver: Caregiver, db: Database
-) -> list[QuickActionPreferenceOut]:
-    stored = db.scalars(
-        select(CaregiverQuickAction)
-        .where(CaregiverQuickAction.caregiver_id == caregiver.id)
-        .order_by(CaregiverQuickAction.position)
-    ).all()
-    actions = [
-        QuickActionPreferenceOut(
-            record_type=item.record_type,
-            position=position,
-            is_hidden=item.is_hidden,
-        )
-        for position, item in enumerate(stored)
-        if item.record_type in QUICK_ACTION_TYPES
-    ]
-    configured = {action.record_type for action in actions}
-    for record_type in QUICK_ACTION_TYPES:
-        if record_type not in configured:
-            actions.append(
-                QuickActionPreferenceOut(
-                    record_type=record_type,
-                    position=len(actions),
-                    is_hidden=False,
-                )
-            )
-    return actions
-
 
 @router.post("/invitations", response_model=InvitationOut, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
@@ -164,24 +126,7 @@ async def put_quick_actions(
     _csrf: CsrfProtected,
     db: Database,
 ) -> list[QuickActionPreferenceOut]:
-    db.execute(
-        delete(CaregiverQuickAction).where(
-            CaregiverQuickAction.caregiver_id == caregiver.id
-        )
-    )
-    db.add_all(
-        [
-            CaregiverQuickAction(
-                caregiver_id=caregiver.id,
-                record_type=action.record_type,
-                position=position,
-                is_hidden=action.is_hidden,
-            )
-            for position, action in enumerate(payload.actions)
-        ]
-    )
-    db.commit()
-    return quick_actions_for(caregiver, db)
+    return replace_quick_actions(caregiver, payload, db)
 
 
 @router.delete("/caregivers/{caregiver_id}", status_code=status.HTTP_204_NO_CONTENT)

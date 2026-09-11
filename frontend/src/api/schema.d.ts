@@ -438,6 +438,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/care-records/active-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Active Statuses */
+        get: operations["list_active_statuses_api_v1_care_records_active_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/care-records/{record_id}": {
         parameters: {
             query?: never;
@@ -478,6 +495,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BabyActiveStatus */
+        BabyActiveStatus: {
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /** Active Types */
+            active_types: components["schemas"]["RecordType"][];
+        };
         /** BabyCreate */
         BabyCreate: {
             /** Display Name */
@@ -651,6 +678,11 @@ export interface components {
             started_at: string;
             /** Ended At */
             ended_at?: string | null;
+        };
+        /** CareRecordConflictResponse */
+        CareRecordConflictResponse: {
+            /** Detail */
+            detail: components["schemas"]["StaleRevisionDetail"] | string;
         };
         /** CareRecordOut */
         CareRecordOut: {
@@ -1191,6 +1223,16 @@ export interface components {
             amount_unit?: string | null;
             /** Reaction Note */
             reaction_note?: string | null;
+        };
+        /** StaleRevisionDetail */
+        StaleRevisionDetail: {
+            /**
+             * Code
+             * @default stale_revision
+             * @constant
+             */
+            code: "stale_revision";
+            current: components["schemas"]["CareRecordOut"];
         };
         /** SyncChangeOut */
         SyncChangeOut: {
@@ -2384,6 +2426,38 @@ export interface operations {
             };
         };
     };
+    list_active_statuses_api_v1_care_records_active_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BabyActiveStatus"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_care_record_api_v1_care_records__record_id__get: {
         parameters: {
             query?: never;
@@ -2447,6 +2521,15 @@ export interface operations {
                     "application/json": components["schemas"]["CareRecordOut"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareRecordConflictResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2482,6 +2565,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareRecordConflictResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

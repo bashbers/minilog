@@ -1,25 +1,10 @@
 import type { TimelineRecord } from "../api/types";
-import { durationMinutes } from "../lib/time";
-
-interface Metric {
-  label: string;
-  value: (record: TimelineRecord) => number;
-  matches: (record: TimelineRecord) => boolean;
-  suffix: string;
-}
-
-const metrics: Metric[] = [
-  { label: "Sleep", matches: (r) => r.record_type === "sleep", value: (r) => durationMinutes(r.occurred_at, r.ended_at), suffix: "min" },
-  { label: "Bottle feeding", matches: (r) => r.record_type === "bottle_feeding", value: (r) => Number(r.details.consumed_ml) || 0, suffix: "ml" },
-  { label: "Feeds", matches: (r) => ["breastfeeding", "bottle_feeding", "solid_food_feeding"].includes(r.record_type), value: () => 1, suffix: "" },
-  { label: "Diaper changes", matches: (r) => r.record_type === "diaper_change", value: () => 1, suffix: "" },
-  { label: "Pumping", matches: (r) => r.record_type === "pumping", value: (r) => Number(r.details.expressed_ml) || 0, suffix: "ml" },
-];
+import { careRecordSummaryValues, careSummaryCatalog } from "../careRecordForms";
 
 export function Trends({ records }: { records: TimelineRecord[] }) {
   return (
     <div className="trend-grid">
-      {metrics.map((metric) => {
+      {careSummaryCatalog.map((metric) => {
         const values = Array.from({ length: 7 }, (_, offset) => {
           const date = new Date();
           date.setHours(0, 0, 0, 0);
@@ -29,9 +14,14 @@ export function Trends({ records }: { records: TimelineRecord[] }) {
           return records
             .filter((record) => {
               const timestamp = new Date(record.occurred_at);
-              return timestamp >= date && timestamp < next && metric.matches(record);
+              return timestamp >= date && timestamp < next;
             })
-            .reduce((sum, record) => sum + metric.value(record), 0);
+            .reduce(
+              (sum, record) => sum + careRecordSummaryValues(record)
+                .filter((summary) => summary.key === metric.key)
+                .reduce((recordSum, summary) => recordSum + summary.value, 0),
+              0,
+            );
         });
         const maximum = Math.max(...values, 1);
         const total = values.reduce((sum, value) => sum + value, 0);

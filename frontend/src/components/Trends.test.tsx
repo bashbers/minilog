@@ -18,7 +18,7 @@ function diaper(hoursAgo: number): TimelineRecord {
     created_at: time,
     updated_at: time,
     revision: 1,
-    details: { is_wet: true, is_dirty: false },
+    details: { is_wet: true, is_dirty: false, stool_colour: null, stool_consistency: null },
   };
 }
 

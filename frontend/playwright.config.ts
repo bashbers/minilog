@@ -12,10 +12,12 @@ export default defineConfig({
   },
   projects: [
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
+    { name: "mobile-webkit", use: { ...devices["iPhone 15"] } },
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
   ],
   webServer: {
-    command: "pnpm dev --host 127.0.0.1 --port 4173",
+    command: "node_modules/.bin/vite --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
   },
