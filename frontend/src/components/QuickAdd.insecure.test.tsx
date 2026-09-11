@@ -26,23 +26,28 @@ test("saves from a LAN HTTP origin where crypto.randomUUID is unavailable", asyn
   const create = vi.spyOn(api, "createRecord").mockResolvedValue({} as never);
   const close = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(["quick-actions"], [
+    { record_type: "note", position: 0, is_hidden: false },
+  ]);
   render(
     <QueryClientProvider client={client}>
       <QuickAdd babyId="baby-id" onClose={close} />
     </QueryClientProvider>,
   );
 
-  fireEvent.click(await screen.findByRole("button", { name: "Note" }));
+  fireEvent.click(screen.getByRole("button", { name: "Note" }));
   fireEvent.change(screen.getByLabelText("Note"), { target: { value: "LAN save" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-  await waitFor(() => expect(create).toHaveBeenCalledOnce());
+  await waitFor(() => {
+    expect(create).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
   const [payload, mutationId] = create.mock.calls[0];
   const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   expect(payload.id).toMatch(uuidV4);
   expect(mutationId).toMatch(uuidV4);
   expect(payload.id).not.toBe(mutationId);
-  expect(close).toHaveBeenCalledOnce();
   expect(screen.queryByText(/Could not save/)).not.toBeInTheDocument();
 });
 
@@ -53,13 +58,16 @@ test("closes with the creation safely queued when startup maintenance returns 50
   vi.spyOn(api, "createRecord").mockRejectedValue(new ApiError(503, "maintenance"));
   const close = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(["quick-actions"], [
+    { record_type: "note", position: 0, is_hidden: false },
+  ]);
   render(
     <QueryClientProvider client={client}>
       <QuickAdd babyId="baby-id" onClose={close} />
     </QueryClientProvider>,
   );
 
-  fireEvent.click(await screen.findByRole("button", { name: "Note" }));
+  fireEvent.click(screen.getByRole("button", { name: "Note" }));
   fireEvent.change(screen.getByLabelText("Note"), { target: { value: "During upgrade" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
 

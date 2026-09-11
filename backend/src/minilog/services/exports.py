@@ -6,6 +6,7 @@ import io
 import json
 import os
 import sqlite3
+import stat
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -20,6 +21,7 @@ from minilog.services.care_records import to_output
 
 EXPORT_FORMAT_VERSION = 1
 MAX_RESTORE_BYTES = 100_000_000
+MAX_RESTORE_MEMBERS = 10_000
 DATA_TABLES = [
     "households",
     "caregivers",
@@ -157,34 +159,74 @@ def spreadsheet_safe(value: str) -> str:
 def checked_archive(path: Path) -> tuple[dict, dict[str, bytes]]:
     if not path.is_file():
         raise RuntimeError(f"Export archive does not exist: {path}")
-    with zipfile.ZipFile(path) as archive:
-        infos = archive.infolist()
-        if sum(info.file_size for info in infos) > MAX_RESTORE_BYTES:
-            raise RuntimeError("Export archive expands beyond the restore safety limit.")
-        for info in infos:
-            name = PurePosixPath(info.filename)
-            if name.is_absolute() or ".." in name.parts:
-                raise RuntimeError("Export archive contains an unsafe path.")
-        try:
-            manifest = json.loads(archive.read("manifest.json"))
-        except (KeyError, json.JSONDecodeError) as exc:
-            raise RuntimeError("Export manifest is missing or invalid.") from exc
-        if (
-            manifest.get("format") != "minilog-export"
-            or manifest.get("format_version") != EXPORT_FORMAT_VERSION
-        ):
-            raise RuntimeError("Export format version is not supported.")
-        files = {}
-        for name, expected in manifest.get("files", {}).items():
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_RESTORE_MEMBERS:
+                raise RuntimeError("Export archive contains too many members.")
+            if sum(info.file_size for info in infos) > MAX_RESTORE_BYTES:
+                raise RuntimeError("Export archive expands beyond the restore safety limit.")
+
+            archive_names: set[str] = set()
+            for info in infos:
+                name = PurePosixPath(info.filename)
+                if (
+                    not info.filename
+                    or "\\" in info.filename
+                    or info.filename.endswith("/")
+                    or name.is_absolute()
+                    or ".." in name.parts
+                    or name.as_posix() != info.filename
+                ):
+                    raise RuntimeError("Export archive contains an unsafe path.")
+                if info.filename in archive_names:
+                    raise RuntimeError(f"Export archive contains a duplicate path: {info.filename}")
+                archive_names.add(info.filename)
+                if stat.S_ISLNK(info.external_attr >> 16):
+                    raise RuntimeError("Export archive contains a symbolic link.")
+                if info.flag_bits & 0x1:
+                    raise RuntimeError("Export archive contains an encrypted member.")
+
             try:
+                manifest = json.loads(archive.read("manifest.json"))
+            except (KeyError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise RuntimeError("Export manifest is missing or invalid.") from exc
+            if not isinstance(manifest, dict):
+                raise RuntimeError("Export manifest is missing or invalid.")
+            if (
+                manifest.get("format") != "minilog-export"
+                or manifest.get("format_version") != EXPORT_FORMAT_VERSION
+            ):
+                raise RuntimeError("Export format version is not supported.")
+            declared_files = manifest.get("files")
+            if not isinstance(declared_files, dict):
+                raise RuntimeError("Export manifest file list is invalid.")
+            if archive_names != {"manifest.json", *declared_files}:
+                raise RuntimeError("Export archive members do not match its manifest.")
+
+            files = {}
+            for name, expected in declared_files.items():
+                if not isinstance(name, str) or not isinstance(expected, dict):
+                    raise RuntimeError("Export manifest file list is invalid.")
+                expected_size = expected.get("size")
+                expected_hash = expected.get("sha256")
+                if (
+                    not isinstance(expected_size, int)
+                    or isinstance(expected_size, bool)
+                    or expected_size < 0
+                    or not isinstance(expected_hash, str)
+                    or len(expected_hash) != 64
+                    or any(character not in "0123456789abcdef" for character in expected_hash)
+                ):
+                    raise RuntimeError(f"Export manifest metadata is invalid: {name}")
                 contents = archive.read(name)
-            except KeyError as exc:
-                raise RuntimeError(f"Export member is missing: {name}") from exc
-            if len(contents) != expected.get("size") or hashlib.sha256(
-                contents
-            ).hexdigest() != expected.get("sha256"):
-                raise RuntimeError(f"Export checksum failed: {name}")
-            files[name] = contents
+                if len(contents) != expected_size or hashlib.sha256(contents).hexdigest() != (
+                    expected_hash
+                ):
+                    raise RuntimeError(f"Export checksum failed: {name}")
+                files[name] = contents
+    except (zipfile.BadZipFile, NotImplementedError) as exc:
+        raise RuntimeError("Export archive is not a supported ZIP file.") from exc
     if "data.json" not in files:
         raise RuntimeError("Export data is missing.")
     return manifest, files

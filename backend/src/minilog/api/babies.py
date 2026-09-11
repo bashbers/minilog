@@ -4,11 +4,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from minilog.config import get_settings
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
-from minilog.models import Baby, BabyProfilePicture, now_ms
+from minilog.models import (
+    Baby,
+    BabyProfilePicture,
+    CareRecord,
+    ProcessedMutation,
+    SyncChange,
+    now_ms,
+)
 from minilog.schemas import BabyCreate, BabyDeleteRequest, BabyOut, BabyUpdate
 
 router = APIRouter(tags=["babies"])
@@ -154,6 +161,21 @@ async def delete_baby(
         raise HTTPException(status_code=409, detail="export_acknowledgement_required")
     if payload.confirmation != baby.display_name:
         raise HTTPException(status_code=409, detail="confirmation_did_not_match")
+
+    record_ids = list(db.scalars(select(CareRecord.id).where(CareRecord.baby_id == baby_id)))
+    if record_ids:
+        db.execute(
+            delete(ProcessedMutation).where(
+                ProcessedMutation.entity_kind == "care_record",
+                ProcessedMutation.entity_id.in_(record_ids),
+            )
+        )
+        db.execute(
+            delete(SyncChange).where(
+                SyncChange.entity_kind == "care_record",
+                SyncChange.entity_id.in_(record_ids),
+            )
+        )
     db.delete(baby)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

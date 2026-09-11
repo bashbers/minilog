@@ -10,7 +10,7 @@ from PIL import Image
 from sqlalchemy import func, select, text
 
 from minilog.api import health
-from minilog.database import SessionLocal, get_db
+from minilog.database import Base, SessionLocal, get_db
 from minilog.main import app
 from minilog.models import CareRecord, ProcessedMutation, SyncChange, SyncState, now_ms
 
@@ -664,6 +664,41 @@ def test_destructive_deletion_requires_exact_confirmation() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf = await setup_owner(client)
         baby_id = await create_baby(client, csrf)
+        mutation_id = str(uuid4())
+        record = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf, "X-Mutation-ID": mutation_id},
+            json=record_payload(baby_id, "note", body="Private deletion test note"),
+        )
+        assert record.status_code == 201, record.text
+
+        image = io.BytesIO()
+        Image.new("RGB", (32, 48), "#f0a07a").save(image, "PNG")
+        picture = await client.put(
+            f"/api/v1/babies/{baby_id}/profile-picture",
+            headers={"X-CSRF-Token": csrf},
+            files={"image": ("baby.png", image.getvalue(), "image/png")},
+        )
+        assert picture.status_code == 204, picture.text
+
+        piyolog_source = b"""PiyoLog text export
+September 8, 2026
+07:00 Sleep
+08:15 Wake up
+Diary: Private imported note
+"""
+        imported = await client.post(
+            "/api/v1/imports/piyolog/confirm",
+            headers={"X-CSRF-Token": csrf},
+            data={
+                "baby_id": baby_id,
+                "source_time_zone": "Europe/Amsterdam",
+                "retain_source": "true",
+            },
+            files={"file": ("piyolog.txt", piyolog_source, "text/plain")},
+        )
+        assert imported.status_code == 201, imported.text
+
         denied = await client.request(
             "DELETE",
             f"/api/v1/babies/{baby_id}",
@@ -679,6 +714,31 @@ def test_destructive_deletion_requires_exact_confirmation() -> None:
         )
         assert deleted.status_code == 204
         assert (await client.get("/api/v1/babies")).json() == []
+        baby_owned_tables = (
+            "babies",
+            "baby_profile_pictures",
+            "import_batches",
+            "care_records",
+            "breastfeeding_records",
+            "breastfeeding_intervals",
+            "bottle_feeding_records",
+            "solid_food_feeding_records",
+            "sleep_records",
+            "diaper_change_records",
+            "pumping_records",
+            "measurement_records",
+            "medication_administration_records",
+            "note_records",
+            "imported_care_records",
+            "imported_daily_notes",
+            "processed_mutations",
+            "sync_changes",
+        )
+        with SessionLocal() as db:
+            for table_name in baby_owned_tables:
+                table = Base.metadata.tables[table_name]
+                count = db.scalar(select(func.count()).select_from(table))
+                assert count == 0, table_name
 
         household_denied = await client.request(
             "DELETE",
@@ -695,6 +755,10 @@ def test_destructive_deletion_requires_exact_confirmation() -> None:
         )
         assert household_deleted.status_code == 204
         assert (await client.get("/api/v1/setup")).json() == {"setup_required": True}
+        with SessionLocal() as db:
+            for table in Base.metadata.sorted_tables:
+                count = db.scalar(select(func.count()).select_from(table))
+                assert count == 0, table.name
 
     asyncio.run(with_client(scenario))
 
