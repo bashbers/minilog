@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const babyId = "db45be01-9eb8-49ac-b18b-a175656d5c65";
 const caregiverId = "f34807e0-a432-47ab-8b33-263c74ef0139";
+const inactiveCaregiverId = "510d287f-b638-4e2f-9b88-cd33bf1dd95e";
 const secondBabyId = "92a144ff-ddf6-48f1-9858-c28a092144ff";
 let unexpectedNetwork: string[] = [];
 
@@ -78,6 +79,7 @@ const futureRecord = {
 async function mockApi(page: Page) {
   let recordDeleted = false;
   let hasProfilePicture = true;
+  let caregiverIdentityErased = false;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -93,7 +95,7 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/setup") return json({ setup_required: false });
     if (path === "/api/v1/sessions/current") {
-      return json({ id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner" });
+      return json({ id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner", is_active: true, identity_erased_at: null });
     }
     if (path === "/api/v1/babies") {
       return json([
@@ -142,8 +144,15 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/imports/piyolog/daily-notes") return json([]);
     if (path === "/api/v1/sessions/devices") return json([]);
+    if (path === `/api/v1/caregivers/${inactiveCaregiverId}/identity` && request.method() === "DELETE") {
+      caregiverIdentityErased = true;
+      return route.fulfill({ status: 204, body: "" });
+    }
     if (path === "/api/v1/caregivers") {
-      return json([{ id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner" }]);
+      return json([
+        { id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner", is_active: true, identity_erased_at: null },
+        { id: inactiveCaregiverId, username_display: caregiverIdentityErased ? "Deleted caregiver" : "sam", display_name: caregiverIdentityErased ? "Deleted caregiver" : "Sam", role: "caregiver", is_active: false, identity_erased_at: caregiverIdentityErased ? 1 : null },
+      ]);
     }
     if (path === "/api/v1/imports/piyolog") return json([]);
     if (path === "/api/v1/household") {
@@ -235,6 +244,9 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   await page.getByLabel("Show Bottle feeding").uncheck();
   await page.getByRole("button", { name: "Save quick actions" }).click();
   await expect(page.getByRole("status")).toHaveText("Quick actions saved.");
+  await page.getByRole("button", { name: "Erase identity" }).click();
+  await expect(page.getByText("Identity erased")).toBeVisible();
+  await expect(page.getByText("Sam")).toHaveCount(0);
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   const background = await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundColor);
   const channels = background.match(/\d+/g)?.slice(0, 3).map(Number) ?? [255, 255, 255];

@@ -97,17 +97,17 @@ docker compose up -d api web
 
 The archive is fully checksum-validated, must match the running database revision, and still causes a verified pre-restore SQLite recovery copy to be made.
 
-### Minilog ZIP format version 1
+### Minilog ZIP format version 2
 
 The ZIP is a private, lossless application export. Its root `manifest.json` contains:
 
 - `format`: the fixed value `minilog-export`;
-- `format_version`: currently `1`;
+- `format_version`: currently `2`;
 - `created_at`: the UTC export timestamp;
 - `database_revision`: the exact Alembic revision required for restore; and
 - `files`: every other archive member keyed by its canonical relative path, with its byte size and lowercase SHA-256 digest.
 
-`data.json` contains the same format version and a complete row list for every portable domain table. Binary profile-picture derivatives are stored as `profile-pictures/<baby-id>.webp`; retained PiyoLog source files are stored as `import-sources/<import-batch-id>.txt`. Invitations, sessions, mutation receipts, and synchronization history are deliberately excluded and are reset during restore.
+`data.json` contains the same format version and a complete row list for every portable domain table. Each import-batch row explicitly records whether its source was retained. Binary profile-picture derivatives are stored as `profile-pictures/<baby-id>.webp`; retained PiyoLog source files are stored as `import-sources/<import-batch-id>.txt`. Invitations, sessions, mutation receipts, and synchronization history are deliberately excluded and are reset during restore.
 
 Restore accepts only the exact declared member set. It rejects malformed ZIPs, duplicate or unsafe paths, symbolic links, encrypted members, excessive member counts or expanded size, checksum mismatches, unknown versions, incomplete table sets, invalid columns, relationship violations, and database-revision mismatches. Validation and reconstruction happen in a temporary database; the live database is atomically replaced only after integrity checks pass.
 

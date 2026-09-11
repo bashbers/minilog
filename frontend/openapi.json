@@ -908,6 +908,90 @@
         }
       }
     },
+    "/api/v1/caregivers/{caregiver_id}/identity": {
+      "delete": {
+        "tags": [
+          "caregivers and devices"
+        ],
+        "summary": "Erase Caregiver",
+        "operationId": "erase_caregiver_api_v1_caregivers__caregiver_id__identity_delete",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Caregiver Id"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/devices": {
       "get": {
         "tags": [
@@ -3938,6 +4022,21 @@
           "role": {
             "type": "string",
             "title": "Role"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "identity_erased_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Erased At"
           }
         },
         "type": "object",
@@ -3945,7 +4044,9 @@
           "id",
           "username_display",
           "display_name",
-          "role"
+          "role",
+          "is_active",
+          "identity_erased_at"
         ],
         "title": "CaregiverOut"
       },

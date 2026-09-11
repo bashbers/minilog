@@ -39,6 +39,14 @@ from minilog.security import (
     normalize_username,
     verify_password,
 )
+from minilog.services.destructive import (
+    CaregiverIdentityAlreadyErasedError,
+    CaregiverMustBeInactiveError,
+    CaregiverNotFoundError,
+    CurrentOwnerMutationError,
+    deactivate_caregiver,
+    erase_caregiver_identity,
+)
 from minilog.services.quick_actions import quick_actions_for, replace_quick_actions
 
 router = APIRouter(tags=["caregivers and devices"])
@@ -100,9 +108,7 @@ async def accept_invitation(
 
 @router.get("/caregivers", response_model=list[CaregiverOut])
 async def list_caregivers(_owner: Owner, db: Database) -> list[CaregiverOut]:
-    caregivers = db.scalars(
-        select(Caregiver).where(Caregiver.is_active.is_(True)).order_by(Caregiver.created_at)
-    ).all()
+    caregivers = db.scalars(select(Caregiver).order_by(Caregiver.created_at)).all()
     return [CaregiverOut.model_validate(item) for item in caregivers]
 
 
@@ -136,21 +142,32 @@ async def remove_caregiver(
     _csrf: CsrfProtected,
     db: Database,
 ) -> Response:
-    caregiver = db.get(Caregiver, str(caregiver_id))
-    if caregiver is None or not caregiver.is_active:
-        raise HTTPException(status_code=404, detail="caregiver_not_found")
-    if caregiver.id == owner.id:
-        raise HTTPException(status_code=409, detail="cannot_remove_current_owner")
-    caregiver.is_active = False
-    caregiver.updated_at = now_ms()
-    for auth_session in db.scalars(
-        select(AuthSession).where(
-            AuthSession.caregiver_id == caregiver.id,
-            AuthSession.revoked_at.is_(None),
-        )
-    ):
-        auth_session.revoked_at = now_ms()
-    db.commit()
+    try:
+        deactivate_caregiver(db, str(caregiver_id), owner.id)
+    except CaregiverNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="caregiver_not_found") from exc
+    except CurrentOwnerMutationError as exc:
+        raise HTTPException(status_code=409, detail="cannot_remove_current_owner") from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/caregivers/{caregiver_id}/identity", status_code=status.HTTP_204_NO_CONTENT)
+async def erase_caregiver(
+    caregiver_id: UUID,
+    owner: Owner,
+    _csrf: CsrfProtected,
+    db: Database,
+) -> Response:
+    try:
+        erase_caregiver_identity(db, str(caregiver_id), owner.id)
+    except CaregiverNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="caregiver_not_found") from exc
+    except CurrentOwnerMutationError as exc:
+        raise HTTPException(status_code=409, detail="cannot_erase_current_owner") from exc
+    except CaregiverMustBeInactiveError as exc:
+        raise HTTPException(status_code=409, detail="caregiver_must_be_inactive") from exc
+    except CaregiverIdentityAlreadyErasedError as exc:
+        raise HTTPException(status_code=409, detail="caregiver_identity_already_erased") from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

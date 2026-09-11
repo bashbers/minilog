@@ -12,7 +12,16 @@ from sqlalchemy import func, select, text
 from minilog.api import health
 from minilog.database import Base, SessionLocal, get_db
 from minilog.main import app
-from minilog.models import CareRecord, ProcessedMutation, SyncChange, SyncState, now_ms
+from minilog.models import (
+    AuthSession,
+    Caregiver,
+    CaregiverQuickAction,
+    CareRecord,
+    ProcessedMutation,
+    SyncChange,
+    SyncState,
+    now_ms,
+)
 
 
 async def with_client(scenario: Callable[[httpx.AsyncClient], Awaitable[None]]) -> None:
@@ -593,6 +602,105 @@ def test_invitation_is_one_time_and_device_revocation_is_scoped() -> None:
             },
         )
         assert second_accept.status_code == 410
+
+    asyncio.run(with_client(scenario))
+
+
+def test_inactive_caregiver_identity_can_be_erased_without_losing_history() -> None:
+    async def scenario(owner_client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(owner_client)
+        baby_id = await create_baby(owner_client, csrf)
+        invitation = await owner_client.post(
+            "/api/v1/invitations",
+            headers={"X-CSRF-Token": csrf},
+            json={},
+        )
+        token = invitation.json()["token"]
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as invited:
+            accepted = await invited.post(
+                "/api/v1/invitations/accept",
+                json={
+                    "token": token,
+                    "username": "private-caregiver",
+                    "display_name": "Private Name",
+                    "password": "another long test passphrase",
+                },
+            )
+            caregiver_id = accepted.json()["caregiver"]["id"]
+            caregiver_csrf = accepted.json()["csrf_token"]
+            mutation_id = str(uuid4())
+            record = await invited.post(
+                "/api/v1/care-records",
+                headers={
+                    "X-CSRF-Token": caregiver_csrf,
+                    "X-Mutation-ID": mutation_id,
+                },
+                json=record_payload(baby_id, "note", body="Keep this history"),
+            )
+            assert record.status_code == 201, record.text
+            record_id = record.json()["id"]
+            preferences = await invited.put(
+                "/api/v1/caregivers/current/quick-actions",
+                headers={"X-CSRF-Token": caregiver_csrf},
+                json={"actions": [{"record_type": "note", "is_hidden": False}]},
+            )
+            assert preferences.status_code == 200, preferences.text
+
+            active_erase = await owner_client.delete(
+                f"/api/v1/caregivers/{caregiver_id}/identity",
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert active_erase.status_code == 409
+            assert active_erase.json()["detail"] == "caregiver_must_be_inactive"
+
+            deactivated = await owner_client.delete(
+                f"/api/v1/caregivers/{caregiver_id}",
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert deactivated.status_code == 204
+            assert (await invited.get("/api/v1/sessions/current")).status_code == 401
+
+        erased = await owner_client.delete(
+            f"/api/v1/caregivers/{caregiver_id}/identity",
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert erased.status_code == 204, erased.text
+
+        with SessionLocal() as db:
+            caregiver = db.get(Caregiver, caregiver_id)
+            assert caregiver is not None
+            assert caregiver.is_active is False
+            assert caregiver.identity_erased_at is not None
+            assert caregiver.username_normalized == f"deleted-{caregiver_id}"
+            assert caregiver.username_display == "Deleted caregiver"
+            assert caregiver.display_name == "Deleted caregiver"
+            care_record = db.get(CareRecord, record_id)
+            assert care_record is not None
+            assert care_record.author_id is None
+            assert care_record.author_label == "Deleted caregiver"
+            assert care_record.last_modified_by_id is None
+            assert care_record.last_modified_by_label == "Deleted caregiver"
+            assert db.get(ProcessedMutation, mutation_id) is None
+            assert db.scalar(
+                select(func.count())
+                .select_from(AuthSession)
+                .where(AuthSession.caregiver_id == caregiver_id)
+            ) == 0
+            assert db.scalar(
+                select(func.count())
+                .select_from(CaregiverQuickAction)
+                .where(CaregiverQuickAction.caregiver_id == caregiver_id)
+            ) == 0
+
+        caregivers = (await owner_client.get("/api/v1/caregivers")).json()
+        deleted = next(item for item in caregivers if item["id"] == caregiver_id)
+        assert deleted["display_name"] == "Deleted caregiver"
+        assert deleted["is_active"] is False
+        assert deleted["identity_erased_at"] is not None
+        history = await owner_client.get(f"/api/v1/care-records/{record_id}")
+        assert history.json()["author_label"] == "Deleted caregiver"
 
     asyncio.run(with_client(scenario))
 

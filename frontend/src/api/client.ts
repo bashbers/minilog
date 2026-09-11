@@ -174,6 +174,10 @@ export const api = {
   deleteProfilePicture: (babyId: string) =>
     request<void>(`/babies/${babyId}/profile-picture`, { method: "DELETE" }),
   caregivers: () => request<Caregiver[]>("/caregivers"),
+  deactivateCaregiver: (id: string) =>
+    request<void>(`/caregivers/${id}`, { method: "DELETE" }),
+  eraseCaregiverIdentity: (id: string) =>
+    request<void>(`/caregivers/${id}/identity`, { method: "DELETE" }),
   quickActions: () =>
     request<QuickActionPreference[]>("/caregivers/current/quick-actions"),
   updateQuickActions: (payload: QuickActionPreferencesUpdate) =>

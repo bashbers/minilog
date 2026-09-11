@@ -212,6 +212,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/caregivers/{caregiver_id}/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Erase Caregiver */
+        delete: operations["erase_caregiver_api_v1_caregivers__caregiver_id__identity_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/devices": {
         parameters: {
             query?: never;
@@ -841,6 +858,10 @@ export interface components {
             display_name: string;
             /** Role */
             role: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Identity Erased At */
+            identity_erased_at: number | null;
         };
         /**
          * ClockFormat
@@ -2290,6 +2311,40 @@ export interface operations {
         };
     };
     remove_caregiver_api_v1_caregivers__caregiver_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                caregiver_id: string;
+            };
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    erase_caregiver_api_v1_caregivers__caregiver_id__identity_delete: {
         parameters: {
             query?: never;
             header?: {

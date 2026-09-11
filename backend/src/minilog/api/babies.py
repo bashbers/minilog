@@ -4,19 +4,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from minilog.config import get_settings
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
 from minilog.models import (
     Baby,
     BabyProfilePicture,
-    CareRecord,
-    ProcessedMutation,
-    SyncChange,
     now_ms,
 )
 from minilog.schemas import BabyCreate, BabyDeleteRequest, BabyOut, BabyUpdate
+from minilog.services.destructive import (
+    BabyNotFoundError,
+    ConfirmationMismatchError,
+    ExportAcknowledgementRequiredError,
+    permanently_delete_baby,
+)
 
 router = APIRouter(tags=["babies"])
 
@@ -154,28 +157,17 @@ async def delete_baby(
     _csrf: CsrfProtected,
     db: Database,
 ) -> Response:
-    baby = db.get(Baby, baby_id)
-    if baby is None:
-        raise HTTPException(status_code=404, detail="baby_not_found")
-    if not payload.export_acknowledged:
-        raise HTTPException(status_code=409, detail="export_acknowledgement_required")
-    if payload.confirmation != baby.display_name:
-        raise HTTPException(status_code=409, detail="confirmation_did_not_match")
-
-    record_ids = list(db.scalars(select(CareRecord.id).where(CareRecord.baby_id == baby_id)))
-    if record_ids:
-        db.execute(
-            delete(ProcessedMutation).where(
-                ProcessedMutation.entity_kind == "care_record",
-                ProcessedMutation.entity_id.in_(record_ids),
-            )
+    try:
+        permanently_delete_baby(
+            db,
+            baby_id,
+            payload.confirmation,
+            payload.export_acknowledged,
         )
-        db.execute(
-            delete(SyncChange).where(
-                SyncChange.entity_kind == "care_record",
-                SyncChange.entity_id.in_(record_ids),
-            )
-        )
-    db.delete(baby)
-    db.commit()
+    except BabyNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="baby_not_found") from exc
+    except ExportAcknowledgementRequiredError as exc:
+        raise HTTPException(status_code=409, detail="export_acknowledgement_required") from exc
+    except ConfirmationMismatchError as exc:
+        raise HTTPException(status_code=409, detail="confirmation_did_not_match") from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

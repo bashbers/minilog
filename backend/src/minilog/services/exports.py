@@ -11,15 +11,22 @@ import zipfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
-from sqlalchemy import select, text
+from PIL import Image, UnidentifiedImageError
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 from minilog.cli import backup_database, read_only_connection, verify_database
 from minilog.database import Base
-from minilog.models import BabyProfilePicture, CareRecord, ImportBatch
+from minilog.models import (
+    BabyProfilePicture,
+    CareRecord,
+    ImportBatch,
+    ImportedDailyNote,
+    RecordType,
+)
 from minilog.services.care_records import to_output
 
-EXPORT_FORMAT_VERSION = 1
+EXPORT_FORMAT_VERSION = 2
 MAX_RESTORE_BYTES = 100_000_000
 MAX_RESTORE_MEMBERS = 10_000
 DATA_TABLES = [
@@ -49,6 +56,18 @@ BINARY_COLUMNS = {
     "import_batches": {"source_contents"},
 }
 SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+DETAIL_TABLE_BY_RECORD_TYPE = {
+    RecordType.BREASTFEEDING.name: "breastfeeding_records",
+    RecordType.BOTTLE_FEEDING.name: "bottle_feeding_records",
+    RecordType.SOLID_FOOD_FEEDING.name: "solid_food_feeding_records",
+    RecordType.SLEEP.name: "sleep_records",
+    RecordType.DIAPER_CHANGE.name: "diaper_change_records",
+    RecordType.PUMPING.name: "pumping_records",
+    RecordType.MEASUREMENT.name: "measurement_records",
+    RecordType.MEDICATION_ADMINISTRATION.name: "medication_administration_records",
+    RecordType.NOTE.name: "note_records",
+    RecordType.IMPORTED_CARE_RECORD.name: "imported_care_records",
+}
 
 
 def json_value(value):
@@ -72,6 +91,11 @@ def add_archive_file(files: dict[str, bytes], name: str, contents: bytes) -> Non
 
 def build_minilog_export(db: Session) -> bytes:
     tables = {name: table_rows(db, name) for name in DATA_TABLES}
+    retained_source_ids = set(
+        db.scalars(select(ImportBatch.id).where(ImportBatch.source_contents.is_not(None)))
+    )
+    for row in tables["import_batches"]:
+        row["source_retained"] = row["id"] in retained_source_ids
     files: dict[str, bytes] = {}
     for picture in db.scalars(select(BabyProfilePicture)):
         add_archive_file(files, f"profile-pictures/{picture.baby_id}.webp", picture.webp_bytes)
@@ -145,6 +169,28 @@ def build_timeline_csv(db: Session, baby_id: str) -> str:
                 spreadsheet_safe(item.note or ""),
                 spreadsheet_safe(item.author_label),
                 item.revision,
+            ]
+        )
+    daily_notes = db.scalars(
+        select(ImportedDailyNote)
+        .where(ImportedDailyNote.baby_id == baby_id)
+        .order_by(ImportedDailyNote.local_date, ImportedDailyNote.id)
+    )
+    for note in daily_notes:
+        writer.writerow(
+            [
+                note.id,
+                note.local_date,
+                "",
+                "imported_daily_note",
+                json.dumps(
+                    {"source_author_text": note.source_author_text},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                spreadsheet_safe(note.body),
+                spreadsheet_safe(note.source_author_text or "PiyoLog import"),
+                "",
             ]
         )
     return output.getvalue()
@@ -246,12 +292,71 @@ def insert_rows(connection: sqlite3.Connection, table: str, rows: list[dict]) ->
         )
 
 
+def validate_profile_picture(row: dict, contents: bytes) -> None:
+    expected_hash = row.get("content_hash")
+    if not isinstance(expected_hash, str) or hashlib.sha256(contents).hexdigest() != expected_hash:
+        raise RuntimeError("A profile picture does not match its stored identity.")
+    try:
+        with Image.open(io.BytesIO(contents)) as image:
+            if image.format != "WEBP" or image.size != (256, 256):
+                raise RuntimeError("A profile picture is not a supported Minilog derivative.")
+            image.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise RuntimeError("A profile picture is not a valid WebP image.") from exc
+    if row.get("width") != 256 or row.get("height") != 256:
+        raise RuntimeError("A profile picture has invalid stored dimensions.")
+
+
+def validate_restored_domain(database_path: Path) -> None:
+    with sqlite3.connect(database_path) as connection:
+        household_count = connection.execute("SELECT COUNT(*) FROM households").fetchone()[0]
+        if household_count != 1:
+            raise RuntimeError("Export must contain exactly one Household.")
+
+        detail_tables_by_record: dict[str, list[str]] = {}
+        for table in DETAIL_TABLE_BY_RECORD_TYPE.values():
+            for (record_id,) in connection.execute(f'SELECT care_record_id FROM "{table}"'):
+                detail_tables_by_record.setdefault(record_id, []).append(table)
+        for record_id, record_type in connection.execute(
+            "SELECT id, record_type FROM care_records"
+        ):
+            expected_table = DETAIL_TABLE_BY_RECORD_TYPE.get(record_type)
+            if detail_tables_by_record.get(record_id) != [expected_table]:
+                raise RuntimeError("A care record has invalid type-specific details.")
+        invalid_interval = connection.execute(
+            """
+            SELECT 1
+            FROM breastfeeding_intervals AS intervals
+            JOIN care_records AS records ON records.id = intervals.care_record_id
+            WHERE records.record_type != 'BREASTFEEDING'
+            LIMIT 1
+            """
+        ).fetchone()
+        if invalid_interval:
+            raise RuntimeError("A breastfeeding interval belongs to the wrong record type.")
+
+    validation_engine = create_engine(
+        f"sqlite:///{database_path.as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
+    try:
+        with Session(validation_engine) as db:
+            for record in db.scalars(select(CareRecord)):
+                to_output(db, record)
+    except Exception as exc:
+        raise RuntimeError("Export contains an invalid care-record value.") from exc
+    finally:
+        validation_engine.dispose()
+
+
 def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
     manifest, files = checked_archive(archive_path.resolve())
     try:
         payload = json.loads(files["data.json"])
     except json.JSONDecodeError as exc:
         raise RuntimeError("Export data JSON is invalid.") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Export data JSON is invalid.")
     if payload.get("format_version") != EXPORT_FORMAT_VERSION:
         raise RuntimeError("Export data version is not supported.")
     tables = payload.get("tables")
@@ -279,20 +384,50 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
             try:
                 for table in [*reversed(DATA_TABLES), *RUNTIME_TABLES]:
                     connection.execute(f'DELETE FROM "{table}"')
+                expected_asset_files = {"data.json"}
                 for table in DATA_TABLES:
                     rows = tables[table]
                     if not isinstance(rows, list):
                         raise RuntimeError(f"Export rows for {table} are invalid.")
-                    for row in rows:
-                        if not isinstance(row, dict):
+                    prepared_rows = []
+                    for exported_row in rows:
+                        if not isinstance(exported_row, dict):
                             raise RuntimeError(f"Export row for {table} is invalid.")
+                        row = dict(exported_row)
                         if table == "baby_profile_pictures":
-                            row["webp_bytes"] = files.get(f"profile-pictures/{row['baby_id']}.webp")
-                            if row["webp_bytes"] is None:
+                            baby_id = row.get("baby_id")
+                            if not isinstance(baby_id, str):
+                                raise RuntimeError("A profile picture row is invalid.")
+                            picture_name = f"profile-pictures/{baby_id}.webp"
+                            expected_asset_files.add(picture_name)
+                            row["webp_bytes"] = files.get(picture_name)
+                            if not isinstance(row["webp_bytes"], bytes):
                                 raise RuntimeError("A profile picture file is missing.")
+                            validate_profile_picture(row, row["webp_bytes"])
                         if table == "import_batches":
-                            row["source_contents"] = files.get(f"import-sources/{row['id']}.txt")
-                    insert_rows(connection, table, rows)
+                            batch_id = row.get("id")
+                            retained = row.pop("source_retained", None)
+                            if not isinstance(batch_id, str) or not isinstance(retained, bool):
+                                raise RuntimeError("An import batch retention marker is invalid.")
+                            source_name = f"import-sources/{batch_id}.txt"
+                            if retained:
+                                expected_asset_files.add(source_name)
+                                source_contents = files.get(source_name)
+                                if not isinstance(source_contents, bytes):
+                                    raise RuntimeError("A retained PiyoLog source file is missing.")
+                                if hashlib.sha256(source_contents).hexdigest() != row.get(
+                                    "source_hash"
+                                ):
+                                    raise RuntimeError(
+                                        "A retained PiyoLog source does not match its import."
+                                    )
+                                row["source_contents"] = source_contents
+                            else:
+                                row["source_contents"] = None
+                        prepared_rows.append(row)
+                    insert_rows(connection, table, prepared_rows)
+                if set(files) != expected_asset_files:
+                    raise RuntimeError("Export contains an unreferenced binary asset.")
                 violations = connection.execute("PRAGMA foreign_key_check").fetchall()
                 if violations:
                     raise RuntimeError("Restored export violates database relationships.")
@@ -300,6 +435,7 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
             except Exception:
                 connection.rollback()
                 raise
+        validate_restored_domain(temporary)
         verify_database(temporary)
         for suffix in ("-wal", "-shm"):
             Path(f"{database_path}{suffix}").unlink(missing_ok=True)

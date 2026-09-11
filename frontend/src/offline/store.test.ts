@@ -2,7 +2,7 @@ import { vi } from "vitest";
 
 import { api, ApiError } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
-import { cacheRecords, cachedRecords, clearLocalData, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
+import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
 
 test("persists offline creations by baby until synchronization", async () => {
   await clearLocalData();
@@ -60,6 +60,35 @@ test("keeps only seven recent days in the offline timeline cache", async () => {
   expect(cachedRecord?.record_type).toBe("note");
   if (cachedRecord?.record_type !== "note") throw new Error("Expected a cached note");
   expect(cachedRecord.details.body).toBe("recent");
+});
+
+test("permanent Baby deletion clears only that Baby's local records and all picture residue", async () => {
+  await clearLocalData();
+  const deletedBabyId = crypto.randomUUID();
+  const otherBabyId = crypto.randomUUID();
+  const payload = (babyId: string): CareRecordCreate => ({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body: "Private local note",
+  });
+  await queueCreation(payload(deletedBabyId), "deleted-baby-mutation");
+  await queueCreation(payload(otherBabyId), "other-baby-mutation");
+  await cacheRecords(deletedBabyId, { items: [], next_cursor: null });
+  await cacheRecords(otherBabyId, { items: [], next_cursor: null });
+  const deletePictureCache = vi.fn().mockResolvedValue(true);
+  vi.stubGlobal("caches", { delete: deletePictureCache });
+
+  await clearBabyLocalData(deletedBabyId);
+
+  expect(await pendingForBaby(deletedBabyId)).toEqual([]);
+  expect(await cachedRecords(deletedBabyId)).toBeUndefined();
+  expect(await pendingForBaby(otherBabyId)).toHaveLength(1);
+  expect(await cachedRecords(otherBabyId)).toEqual({ items: [], next_cursor: null });
+  expect(deletePictureCache).toHaveBeenCalledWith("minilog-profile-pictures");
+  vi.unstubAllGlobals();
 });
 
 test("marks a rejected creation failed, continues the queue, and supports explicit retry", async () => {

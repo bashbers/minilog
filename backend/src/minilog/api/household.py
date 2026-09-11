@@ -1,23 +1,15 @@
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
-from minilog.models import (
-    AuthSession,
-    Baby,
-    Caregiver,
-    CaregiverQuickAction,
-    CareRecord,
-    Household,
-    ImportBatch,
-    ImportedDailyNote,
-    Invitation,
-    ProcessedMutation,
-    SyncChange,
-    SyncState,
-)
+from minilog.models import Household
 from minilog.schemas import HouseholdDeleteRequest, HouseholdOut
 from minilog.security import CSRF_COOKIE, SESSION_COOKIE
+from minilog.services.destructive import (
+    ConfirmationMismatchError,
+    HouseholdNotFoundError,
+    permanently_delete_household,
+)
 
 router = APIRouter(tags=["household"])
 
@@ -38,27 +30,11 @@ async def delete_household(
     _csrf: CsrfProtected,
     db: Database,
 ) -> None:
-    household = db.scalar(select(Household))
-    if household is None:
-        raise HTTPException(status_code=404, detail="household_not_found")
-    if payload.confirmation != f"DELETE {household.display_name}":
-        raise HTTPException(status_code=409, detail="confirmation_did_not_match")
-
-    for model in (
-        ProcessedMutation,
-        SyncChange,
-        SyncState,
-        ImportedDailyNote,
-        CareRecord,
-        ImportBatch,
-        Baby,
-        Invitation,
-        AuthSession,
-        CaregiverQuickAction,
-        Caregiver,
-        Household,
-    ):
-        db.execute(delete(model))
-    db.commit()
+    try:
+        permanently_delete_household(db, payload.confirmation)
+    except HouseholdNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="household_not_found") from exc
+    except ConfirmationMismatchError as exc:
+        raise HTTPException(status_code=409, detail="confirmation_did_not_match") from exc
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")

@@ -32,7 +32,7 @@ September 8, 2026
 08:15 Wake up
 08:30 Bottle: 120 ml formula
 09:00 Diaper: wet
-Diary: A relaxed morning
+Diary: =HYPERLINK("https://example.invalid/daily")
 09:30 Custom event: details are kept
 """
 
@@ -61,7 +61,7 @@ def write_archive(path: Path, members: list[tuple[str | zipfile.ZipInfo, bytes]]
 def checked_fixture_members(data: bytes = b"{}") -> tuple[dict, list[tuple[str, bytes]]]:
     manifest = {
         "format": "minilog-export",
-        "format_version": 1,
+        "format_version": 2,
         "database_revision": "47ccc6557a5e",
         "files": {
             "data.json": {
@@ -71,6 +71,30 @@ def checked_fixture_members(data: bytes = b"{}") -> tuple[dict, list[tuple[str, 
         },
     }
     return manifest, [("manifest.json", json.dumps(manifest).encode()), ("data.json", data)]
+
+
+def write_self_consistent_export(
+    path: Path,
+    original_members: dict[str, bytes],
+    *,
+    replacements: dict[str, bytes] | None = None,
+    omissions: set[str] | None = None,
+) -> None:
+    files = {
+        name: contents
+        for name, contents in original_members.items()
+        if name != "manifest.json" and name not in (omissions or set())
+    }
+    files.update(replacements or {})
+    manifest = json.loads(original_members["manifest.json"])
+    manifest["files"] = {
+        name: {"size": len(contents), "sha256": hashlib.sha256(contents).hexdigest()}
+        for name, contents in sorted(files.items())
+    }
+    write_archive(
+        path,
+        [("manifest.json", json.dumps(manifest).encode()), *sorted(files.items())],
+    )
 
 
 def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_path) -> None:
@@ -189,6 +213,9 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
             row["note"] for row in rows if row["record_type"] == "solid_food_feeding"
         )
         assert formula_note.startswith("'=HYPERLINK")
+        daily_note = next(row for row in rows if row["record_type"] == "imported_daily_note")
+        assert daily_note["occurred_at"] == "2026-09-08"
+        assert daily_note["note"].startswith("'=HYPERLINK")
 
         archive = await client.get("/api/v1/exports/minilog")
         assert archive.status_code == 200
@@ -199,7 +226,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     members = archive_members(archive_bytes)
     manifest = json.loads(members["manifest.json"])
     payload = json.loads(members["data.json"])
-    assert manifest["format_version"] == 1
+    assert manifest["format_version"] == 2
     assert set(payload["tables"]) == set(DATA_TABLES)
     assert {row["record_type"] for row in payload["tables"]["care_records"]} == {
         "BREASTFEEDING",
@@ -246,25 +273,86 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     invalid_data = json.dumps(
         invalid_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
-    invalid_manifest = json.loads(members["manifest.json"])
-    invalid_manifest["files"]["data.json"] = {
-        "size": len(invalid_data),
-        "sha256": hashlib.sha256(invalid_data).hexdigest(),
-    }
     invalid_path = tmp_path / "invalid-semantic-export.zip"
-    write_archive(
-        invalid_path,
-        [
-            ("manifest.json", json.dumps(invalid_manifest).encode()),
-            *[
-                (name, invalid_data if name == "data.json" else contents)
-                for name, contents in members.items()
-                if name != "manifest.json"
-            ],
-        ],
+    write_self_consistent_export(
+        invalid_path, members, replacements={"data.json": invalid_data}
     )
     with pytest.raises(RuntimeError, match="invalid columns"):
         restore_minilog_export(invalid_path, TEST_DATABASE)
+    with sqlite3.connect(TEST_DATABASE) as connection:
+        assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
+            "Changed after export"
+        )
+        assert connection.execute("SELECT webp_bytes FROM baby_profile_pictures").fetchone()[0] == (
+            b"\x00"
+        )
+
+    missing_detail_payload = json.loads(members["data.json"])
+    missing_detail_payload["tables"]["bottle_feeding_records"] = []
+    missing_detail_data = json.dumps(
+        missing_detail_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    missing_detail_path = tmp_path / "missing-detail.zip"
+    write_self_consistent_export(
+        missing_detail_path, members, replacements={"data.json": missing_detail_data}
+    )
+    with pytest.raises(RuntimeError, match="type-specific details"):
+        restore_minilog_export(missing_detail_path, TEST_DATABASE)
+
+    mismatched_detail_payload = json.loads(members["data.json"])
+    bottle_id = mismatched_detail_payload["tables"]["bottle_feeding_records"][0][
+        "care_record_id"
+    ]
+    mismatched_detail_payload["tables"]["sleep_records"].append(
+        {"care_record_id": bottle_id}
+    )
+    mismatched_detail_data = json.dumps(
+        mismatched_detail_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    mismatched_detail_path = tmp_path / "mismatched-detail.zip"
+    write_self_consistent_export(
+        mismatched_detail_path,
+        members,
+        replacements={"data.json": mismatched_detail_data},
+    )
+    with pytest.raises(RuntimeError, match="type-specific details"):
+        restore_minilog_export(mismatched_detail_path, TEST_DATABASE)
+
+    invalid_picture_payload = json.loads(members["data.json"])
+    invalid_picture_payload["tables"]["baby_profile_pictures"][0]["content_hash"] = (
+        hashlib.sha256(b"not a webp").hexdigest()
+    )
+    invalid_picture_data = json.dumps(
+        invalid_picture_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    invalid_picture_path = tmp_path / "invalid-picture.zip"
+    write_self_consistent_export(
+        invalid_picture_path,
+        members,
+        replacements={"data.json": invalid_picture_data, picture_name: b"not a webp"},
+    )
+    with pytest.raises(RuntimeError, match="valid WebP"):
+        restore_minilog_export(invalid_picture_path, TEST_DATABASE)
+
+    mismatched_picture_path = tmp_path / "mismatched-picture.zip"
+    write_self_consistent_export(
+        mismatched_picture_path, members, replacements={picture_name: b"not the stored picture"}
+    )
+    with pytest.raises(RuntimeError, match="stored identity"):
+        restore_minilog_export(mismatched_picture_path, TEST_DATABASE)
+
+    omitted_source_path = tmp_path / "omitted-source.zip"
+    write_self_consistent_export(omitted_source_path, members, omissions={import_name})
+    with pytest.raises(RuntimeError, match="source file is missing"):
+        restore_minilog_export(omitted_source_path, TEST_DATABASE)
+
+    substituted_source_path = tmp_path / "substituted-source.zip"
+    write_self_consistent_export(
+        substituted_source_path, members, replacements={import_name: b"different source"}
+    )
+    with pytest.raises(RuntimeError, match="does not match its import"):
+        restore_minilog_export(substituted_source_path, TEST_DATABASE)
+
     with sqlite3.connect(TEST_DATABASE) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "Changed after export"
@@ -332,7 +420,7 @@ def test_checked_archive_rejects_unknown_versions_members_and_excessive_expansio
     tmp_path, monkeypatch
 ) -> None:
     manifest, _members = checked_fixture_members()
-    manifest["format_version"] = 2
+    manifest["format_version"] = 3
     incompatible = tmp_path / "incompatible.zip"
     write_archive(
         incompatible,

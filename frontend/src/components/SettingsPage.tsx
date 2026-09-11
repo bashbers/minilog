@@ -16,7 +16,7 @@ import { api, ApiError } from "../api/client";
 import { invalidateCareRecordQueries } from "../api/cache";
 import type { Baby, Caregiver, PiyoLogPreview, QuickActionPreference } from "../api/types";
 import { careAction } from "../careActions";
-import { clearLocalData } from "../offline/store";
+import { clearBabyLocalData, clearLocalData } from "../offline/store";
 
 export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Caregiver }) {
   const owner = caregiver.role === "owner";
@@ -28,7 +28,7 @@ export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Careg
       <div className="settings-grid">
         <QuickActionsCard />
         <DeviceCard />
-        {owner && <CaregiverCard />}
+        {owner && <CaregiverCard currentCaregiverId={caregiver.id} />}
         {owner && <ImportCard baby={baby} />}
         {owner && <ExportCard baby={baby} />}
         {owner && <DangerCard baby={baby} />}
@@ -118,13 +118,18 @@ function DeviceCard() {
   );
 }
 
-function CaregiverCard() {
+function CaregiverCard({ currentCaregiverId }: { currentCaregiverId: string }) {
+  const queryClient = useQueryClient();
   const caregivers = useQuery({ queryKey: ["caregivers"], queryFn: api.caregivers });
   const invitation = useMutation({ mutationFn: api.createInvitation });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["caregivers"] });
+  const deactivate = useMutation({ mutationFn: api.deactivateCaregiver, onSuccess: refresh });
+  const erase = useMutation({ mutationFn: api.eraseCaregiverIdentity, onSuccess: refresh });
   return (
     <section className="settings-card">
       <div className="card-title"><LinkIcon /><div><h2>Caregivers</h2><p>Invite with a one-use code that expires in 24 hours.</p></div></div>
-      <div className="stack-list">{caregivers.data?.map((item) => <div className="list-row" key={item.id}><div><strong>{item.display_name}</strong><span>{item.role}</span></div></div>)}</div>
+      <div className="stack-list">{caregivers.data?.map((item) => <div className="list-row" key={item.id}><div><strong>{item.display_name}</strong><span>{item.identity_erased_at ? "Identity erased" : item.is_active ? item.role : "Access removed"}</span></div>{item.id !== currentCaregiverId && item.is_active && <button className="secondary small" disabled={deactivate.isPending} onClick={() => deactivate.mutate(item.id)}>Remove access</button>}{item.id !== currentCaregiverId && !item.is_active && !item.identity_erased_at && <button className="danger-button small" disabled={erase.isPending} onClick={() => erase.mutate(item.id)}>Erase identity</button>}</div>)}</div>
+      {(deactivate.isError || erase.isError) && <p className="error" role="alert">Could not update this caregiver.</p>}
       <button className="secondary" onClick={() => invitation.mutate()} disabled={invitation.isPending}>Create invitation code</button>
       {invitation.data && <div className="secret-output"><span>Share privately, once</span><code>{invitation.data.token}</code></div>}
     </section>
@@ -192,7 +197,8 @@ function DangerCard({ baby }: { baby: Baby }) {
   const [householdConfirmation, setHouseholdConfirmation] = useState("");
   const removeBaby = useMutation({
     mutationFn: () => api.deleteBaby(baby.id, babyConfirmation, exportAcknowledged),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await clearBabyLocalData(baby.id);
       localStorage.removeItem("selectedBaby");
       window.location.assign("/");
     },

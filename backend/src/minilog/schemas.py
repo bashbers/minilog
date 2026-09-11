@@ -48,6 +48,8 @@ class CaregiverOut(APIModel):
     username_display: str
     display_name: str
     role: str
+    is_active: bool
+    identity_erased_at: int | None
 
 
 class SessionOut(APIModel):
