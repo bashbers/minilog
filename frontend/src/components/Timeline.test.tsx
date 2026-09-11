@@ -48,6 +48,27 @@ test("marks offline creations without exposing edit controls", () => {
   expect(screen.queryByLabelText("Record options")).not.toBeInTheDocument();
 });
 
+test("offers explicit resolution for a failed queued creation", () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Timeline records={[{
+        ...record,
+        queued: true,
+        queueState: {
+          mutationId: "failed-mutation",
+          status: "failed",
+          errorCode: "invalid_record",
+        },
+      }]} babyId={record.baby_id} />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByRole("alert")).toHaveTextContent("invalid_record");
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+  expect(screen.queryByLabelText("Record options")).not.toBeInTheDocument();
+});
+
 test("opens the online editor from record options", () => {
   render(
     <QueryClientProvider client={new QueryClient()}>

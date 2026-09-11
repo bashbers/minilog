@@ -8,6 +8,7 @@ import {
   Scale,
   TestTubeDiagonal,
 } from "lucide-react";
+import { useState } from "react";
 import type { AriaAttributes, ComponentType, ReactNode } from "react";
 
 import type {
@@ -160,6 +161,47 @@ function notePayload(common: CommonRecordInput, values: FormData): CareRecordCre
   return { ...common, record_type: "note", body: String(values.get("body")) };
 }
 
+type MedicationPayload = Extract<
+  CareRecordCreate,
+  { record_type: "medication_administration" }
+>;
+type CommonMedicationUnit = NonNullable<MedicationPayload["unit_code"]>;
+const commonMedicationUnits: Array<{ code: CommonMedicationUnit; label: string }> = [
+  { code: "ml", label: "Millilitres (ml)" },
+  { code: "mg", label: "Milligrams (mg)" },
+  { code: "g", label: "Grams (g)" },
+  { code: "mcg", label: "Micrograms (mcg)" },
+  { code: "tablet", label: "Tablet(s)" },
+  { code: "drop", label: "Drop(s)" },
+];
+
+function MedicationUnitFields({
+  unitCode = "ml",
+  customUnit = null,
+}: {
+  unitCode?: CommonMedicationUnit | null;
+  customUnit?: string | null;
+}) {
+  const [selection, setSelection] = useState<CommonMedicationUnit | "custom">(
+    customUnit ? "custom" : unitCode ?? "ml",
+  );
+  return <div className="field-row">
+    <label>Unit type<select name="medicineUnitKind" value={selection} onChange={(event) => setSelection(event.target.value as CommonMedicationUnit | "custom")}>
+      {commonMedicationUnits.map(({ code, label }) => <option value={code} key={code}>{label}</option>)}
+      <option value="custom">Custom unit</option>
+    </select></label>
+    {selection === "custom" && <label>Custom unit<input name="medicineCustomUnit" required defaultValue={customUnit ?? ""} placeholder="e.g. sachet" /></label>}
+  </div>;
+}
+
+function medicationUnit(values: FormData): Pick<MedicationPayload, "unit_code" | "custom_unit"> {
+  const selection = String(values.get("medicineUnitKind"));
+  if (selection === "custom") {
+    return { unit_code: null, custom_unit: String(values.get("medicineCustomUnit")) };
+  }
+  return { unit_code: selection as CommonMedicationUnit, custom_unit: null };
+}
+
 export const careRecordRegistry = {
   breastfeeding: {
     kind: "breastfeeding",
@@ -241,7 +283,7 @@ export const careRecordRegistry = {
     icon: Beef,
     historyGroup: "feeding",
     timed: false,
-    showCommonNote: false,
+    showCommonNote: true,
     detail: (record) => String(record.details.foods ?? ""),
     summaries: [{ key: "feeds", label: "Feeds", suffix: "", priority: 30, value: () => 1 }],
     createFields: () => <>
@@ -316,7 +358,7 @@ export const careRecordRegistry = {
     timed: false,
     showCommonNote: true,
     detail: (record) => `${record.details.entered_value ?? ""} ${record.details.entered_unit ?? ""} · ${record.details.kind ?? ""}`,
-    summaries: [{ key: "measurements", label: "Measurements", suffix: "", priority: 60, value: () => 1 }],
+    summaries: [],
     createFields: () => <>
       <label>Measurement<select name="measurementKind"><option value="weight">Weight</option><option value="height">Height</option><option value="temperature">Temperature</option></select></label>
       <div className="field-row"><label>Value<input name="measurementValue" type="number" step="any" required inputMode="decimal" /></label><label>Unit<input name="measurementUnit" placeholder="kg" /></label></div>
@@ -358,32 +400,27 @@ export const careRecordRegistry = {
     summaries: [],
     createFields: () => <>
       <label>Medicine name<input name="medicineName" required /></label>
-      <div className="field-row"><label>Amount<input name="medicineAmount" type="number" min="0" step="any" required inputMode="decimal" /></label><label>Unit<input name="medicineUnit" defaultValue="ml" required /></label></div>
+      <label>Amount<input name="medicineAmount" type="number" min="0" step="any" required inputMode="decimal" /></label>
+      <MedicationUnitFields />
       <label>Route <span className="muted">optional</span><input name="route" placeholder="Oral" /></label>
     </>,
-    editFields: (record) => <><label>Medicine name<input name="medicineName" required defaultValue={record.details.medicine_name} /></label><div className="field-row"><label>Amount<input name="medicineAmount" type="number" min="0" step="any" required defaultValue={formValue(record.details.amount_value)} /></label><label>Unit<input name="medicineUnit" required defaultValue={formValue(record.details.unit_code ?? record.details.custom_unit)} /></label></div><label>Route <span className="muted">optional</span><input name="route" defaultValue={formValue(record.details.route)} /></label></>,
+    editFields: (record) => <><label>Medicine name<input name="medicineName" required defaultValue={record.details.medicine_name} /></label><label>Amount<input name="medicineAmount" type="number" min="0" step="any" required defaultValue={formValue(record.details.amount_value)} /></label><MedicationUnitFields unitCode={record.details.unit_code} customUnit={record.details.custom_unit} /><label>Route <span className="muted">optional</span><input name="route" defaultValue={formValue(record.details.route)} /></label></>,
     createPayload: (common, values) => ({
       ...common,
       record_type: "medication_administration",
       medicine_name: String(values.get("medicineName")),
       amount_value: Number(values.get("medicineAmount")),
-      unit_code: String(values.get("medicineUnit") || "ml"),
-      custom_unit: null,
+      ...medicationUnit(values),
       route: String(values.get("route") ?? "") || null,
     }),
-    editPayload: (common, record, values) => {
-      const usesCustomUnit = record.details.custom_unit != null;
-      const unit = String(values.get("medicineUnit"));
-      return {
-        ...common,
-        record_type: "medication_administration",
-        medicine_name: String(values.get("medicineName")),
-        amount_value: Number(values.get("medicineAmount")),
-        unit_code: usesCustomUnit ? null : unit,
-        custom_unit: usesCustomUnit ? unit : null,
-        route: String(values.get("route") ?? "") || null,
-      };
-    },
+    editPayload: (common, _record, values) => ({
+      ...common,
+      record_type: "medication_administration",
+      medicine_name: String(values.get("medicineName")),
+      amount_value: Number(values.get("medicineAmount")),
+      ...medicationUnit(values),
+      route: String(values.get("route") ?? "") || null,
+    }),
     queuedDetails: (payload) => ({
       medicine_name: payload.medicine_name,
       amount_value: String(payload.amount_value),
@@ -517,6 +554,8 @@ export function careRecordSummaryValues(record: TimelineRecord): CareSummaryValu
 export function queuedTimelineRecord(
   payload: CareRecordCreate,
   mutationId: string,
+  status: "queued" | "failed" = "queued",
+  errorCode?: string,
 ): TimelineRecord {
   const now = new Date().toISOString();
   const record = {
@@ -534,6 +573,7 @@ export function queuedTimelineRecord(
     revision: 1,
     details: uniformRegistry[payload.record_type].queuedDetails(payload),
     queued: true,
+    queueState: { mutationId, status, errorCode },
   };
 
   // The registry preserves the discriminator/details pairing of the generated API union.

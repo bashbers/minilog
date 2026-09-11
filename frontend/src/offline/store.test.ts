@@ -1,5 +1,8 @@
-import type { CareRecordPage } from "../api/types";
-import { cacheRecords, cachedRecords, clearLocalData, pendingForBaby, queueCreation } from "./store";
+import { vi } from "vitest";
+
+import { api, ApiError } from "../api/client";
+import type { CareRecordCreate, CareRecordPage } from "../api/types";
+import { cacheRecords, cachedRecords, clearLocalData, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
 
 test("persists offline creations by baby until synchronization", async () => {
   await clearLocalData();
@@ -57,4 +60,36 @@ test("keeps only seven recent days in the offline timeline cache", async () => {
   expect(cachedRecord?.record_type).toBe("note");
   if (cachedRecord?.record_type !== "note") throw new Error("Expected a cached note");
   expect(cachedRecord.details.body).toBe("recent");
+});
+
+test("marks a rejected creation failed, continues the queue, and supports explicit retry", async () => {
+  await clearLocalData();
+  vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+  const babyId = crypto.randomUUID();
+  const payload = (body: string): CareRecordCreate => ({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body,
+  });
+  await queueCreation(payload("Rejected"), "failed-mutation");
+  await queueCreation(payload("Accepted"), "successful-mutation");
+  vi.spyOn(api, "createRecord")
+    .mockRejectedValueOnce(new ApiError(422, "invalid_record"))
+    .mockResolvedValueOnce({} as never);
+
+  expect(await flushPending()).toEqual({ completed: 1, failed: 1 });
+  let pending = await pendingForBaby(babyId);
+  expect(pending).toHaveLength(1);
+  expect(pending[0]).toMatchObject({
+    mutationId: "failed-mutation",
+    status: "failed",
+    errorCode: "invalid_record",
+  });
+
+  await retryPendingCreation("failed-mutation");
+  pending = await pendingForBaby(babyId);
+  expect(pending[0].status).toBe("queued");
 });

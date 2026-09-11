@@ -30,3 +30,29 @@ export function durationMinutes(start: string, end: string | null) {
   return Math.max(0, Math.round((endTime - new Date(start).getTime()) / 60_000));
 }
 
+export function dateKeyInTimeZone(
+  value: Date | string,
+  timeZone: string,
+): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(typeof value === "string" ? new Date(value) : value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function shiftDateKey(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function formatDateKey(dateKey: string, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat(undefined, { ...options, timeZone: "UTC" }).format(
+    new Date(`${dateKey}T12:00:00Z`),
+  );
+}

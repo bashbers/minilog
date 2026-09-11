@@ -9,7 +9,7 @@ import type {
 } from "../api/types";
 import { careRecordDetail, careRecordLabel, isActiveCareRecord, type ActiveTimedTimelineRecord } from "../careRecordForms";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import { useDeleteRecord, useUpdateRecord } from "../hooks/useRecords";
+import { useDeleteRecord, useDiscardQueuedCreation, useRetryQueuedCreation, useUpdateRecord } from "../hooks/useRecords";
 import { formatDay, formatTime } from "../lib/time";
 import { EditRecordSheet } from "./EditRecordSheet";
 
@@ -70,6 +70,8 @@ function switchSidePayload(record: BreastfeedingTimelineRecord): CareRecordCreat
 export function Timeline({ records, babyId, showDay = false }: { records: TimelineRecord[]; babyId: string; showDay?: boolean }) {
   const update = useUpdateRecord(babyId);
   const remove = useDeleteRecord(babyId);
+  const retryQueued = useRetryQueuedCreation(babyId);
+  const discardQueued = useDiscardQueuedCreation(babyId);
   const online = useOnlineStatus();
   const [menu, setMenu] = useState<string | null>(null);
   const [editing, setEditing] = useState<TimelineRecord | null>(null);
@@ -87,6 +89,7 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
     <div className="timeline">
       {records.map((record) => {
         const active = isActiveCareRecord(record);
+        const queueState = record.queueState;
         return (
           <article className={`timeline-item ${active ? "active" : ""}`} key={record.id}>
             <div className="timeline-time"><strong>{formatTime(record.occurred_at)}</strong>{showDay && <span>{formatDay(record.occurred_at)}</span>}</div>
@@ -94,7 +97,8 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
             <div className="timeline-content">
               <div className="record-heading"><div><h2>{careRecordLabel(record)}</h2><p>{careRecordDetail(record)}</p></div>{record.queued ? <CloudOff aria-label="Waiting to sync" /> : record.record_type !== "imported_care_record" && (online ? <button className="ghost icon-button" aria-label="Record options" data-record-options-id={record.id} onClick={() => setMenu(menu === record.id ? null : record.id)}><Ellipsis /></button> : <CloudOff aria-label="Reconnect to edit or delete" />)}</div>
               {record.note && <p className="record-note">{record.note}</p>}
-              <p className="attribution">{record.queued ? "Waiting for connection" : `by ${record.author_label}`}</p>
+              <p className="attribution">{queueState?.status === "failed" ? "Could not sync this record" : record.queued ? "Waiting for connection" : `by ${record.author_label}`}</p>
+              {queueState?.status === "failed" && <div className="queue-failure" role="alert"><p>The server rejected this queued record ({queueState.errorCode ?? "request failed"}). Retry it, or discard this local copy.</p><div className="active-actions"><button className="secondary small" onClick={() => retryQueued.mutate(queueState.mutationId)}>Retry</button><button className="ghost small" onClick={() => discardQueued.mutate(queueState.mutationId)}>Discard</button></div></div>}
               {active && !record.queued && online && record.record_type === "breastfeeding" && <div className="active-actions"><button className="secondary small" onClick={() => applyUpdate(record, switchSidePayload(record))}>Switch side</button><button className="stop-button" onClick={() => applyUpdate(record, stoppedPayload(record))}><Square /> Stop</button></div>}
               {active && !record.queued && online && record.record_type === "sleep" && <button className="stop-button" onClick={() => applyUpdate(record, stoppedPayload(record))}><Square /> Stop</button>}
               {active && !record.queued && online && record.record_type === "pumping" && (finishingPump === record.id ? <div className="pump-finish"><label>Expressed volume (ml) <span className="muted">optional</span><input aria-label="Expressed volume ml" type="number" min="0" inputMode="numeric" value={pumpAmount} onChange={(event) => setPumpAmount(event.target.value)} /></label><div className="active-actions"><button className="secondary small" onClick={() => setFinishingPump(null)}>Cancel</button><button className="stop-button" onClick={() => { const payload = stoppedPayload(record); if (payload.record_type === "pumping") payload.expressed_ml = pumpAmount ? Number(pumpAmount) : null; applyUpdate(record, payload); setFinishingPump(null); setPumpAmount(""); }}><Square /> Stop & save</button></div></div> : <button className="stop-button" onClick={() => { setFinishingPump(record.id); setPumpAmount(String(record.details.expressed_ml ?? "")); }}><Square /> Stop</button>)}

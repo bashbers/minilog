@@ -1,12 +1,14 @@
 import { openDB, type DBSchema } from "idb";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
 
-interface PendingCreation {
+export interface PendingCreation {
   mutationId: string;
   payload: CareRecordCreate;
   createdAt: number;
+  status: "queued" | "failed";
+  errorCode?: string;
 }
 
 interface MinilogDB extends DBSchema {
@@ -34,30 +36,56 @@ const database = openDB<MinilogDB>("minilog", 1, {
 
 export async function queueCreation(payload: CareRecordCreate, mutationId: string) {
   const db = await database;
-  await db.put("pending", { payload, mutationId, createdAt: Date.now() });
+  await db.put("pending", { payload, mutationId, createdAt: Date.now(), status: "queued" });
 }
 
 export async function pendingForBaby(babyId: string) {
   const db = await database;
-  return (await db.getAll("pending")).filter((item) => item.payload.baby_id === babyId);
+  return (await db.getAll("pending"))
+    .filter((item) => item.payload.baby_id === babyId)
+    .map((item) => ({ ...item, status: item.status ?? "queued" as const }));
 }
 
-export async function flushPending(): Promise<number> {
-  if (!navigator.onLine) return 0;
+export interface FlushPendingResult {
+  completed: number;
+  failed: number;
+}
+
+export async function flushPending(): Promise<FlushPendingResult> {
+  if (!navigator.onLine) return { completed: 0, failed: 0 };
   const db = await database;
   const pending = await db.getAll("pending");
   let completed = 0;
+  let failed = 0;
   for (const item of pending) {
+    if (item.status === "failed") continue;
     try {
       await api.createRecord(item.payload, item.mutationId);
       await db.delete("pending", item.mutationId);
       completed += 1;
     } catch (error) {
       if (error instanceof TypeError) break;
-      throw error;
+      await db.put("pending", {
+        ...item,
+        status: "failed",
+        errorCode: error instanceof ApiError ? error.detail : "request_failed",
+      });
+      failed += 1;
     }
   }
-  return completed;
+  return { completed, failed };
+}
+
+export async function retryPendingCreation(mutationId: string) {
+  const db = await database;
+  const item = await db.get("pending", mutationId);
+  if (!item) return;
+  await db.put("pending", { ...item, status: "queued", errorCode: undefined });
+}
+
+export async function discardPendingCreation(mutationId: string) {
+  const db = await database;
+  await db.delete("pending", mutationId);
 }
 
 export async function cacheRecords(babyId: string, page: CareRecordPage) {

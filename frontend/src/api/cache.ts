@@ -8,5 +8,9 @@ export async function invalidateCareRecordQueries(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["records", ...scope] }),
     queryClient.invalidateQueries({ queryKey: ["history-records", ...scope] }),
+    queryClient.invalidateQueries({ queryKey: ["today-records", ...scope] }),
+    queryClient.invalidateQueries({ queryKey: ["active-records", ...scope] }),
+    queryClient.invalidateQueries({ queryKey: ["trend-records", ...scope] }),
+    queryClient.invalidateQueries({ queryKey: ["baby-active-statuses"] }),
   ]);
 }

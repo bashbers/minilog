@@ -1249,7 +1249,7 @@ export interface components {
             /** Amount Value */
             amount_value: number | string;
             /** Unit Code */
-            unit_code?: string | null;
+            unit_code?: ("ml" | "mg" | "g" | "mcg" | "tablet" | "drop") | null;
             /** Custom Unit */
             custom_unit?: string | null;
             /** Route */
@@ -1262,7 +1262,7 @@ export interface components {
             /** Amount Value */
             amount_value: string;
             /** Unit Code */
-            unit_code: string | null;
+            unit_code: ("ml" | "mg" | "g" | "mcg" | "tablet" | "drop") | null;
             /** Custom Unit */
             custom_unit: string | null;
             /** Route */
@@ -2864,6 +2864,7 @@ export interface operations {
                 record_type?: components["schemas"]["RecordType"][] | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                active_only?: boolean;
                 limit?: number;
             };
             header?: never;

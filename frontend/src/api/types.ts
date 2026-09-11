@@ -35,7 +35,16 @@ export type CareRecordCreate =
   | components["schemas"]["MedicationAdministrationCreate"]
   | components["schemas"]["NoteCreate"];
 
-type WithQueued<Record> = Record extends unknown ? Record & { queued?: boolean } : never;
+export interface CareRecordQueueState {
+  mutationId: string;
+  status: "queued" | "failed";
+  errorCode?: string;
+}
+
+type WithQueued<Record> = Record extends unknown ? Record & {
+  queued?: boolean;
+  queueState?: CareRecordQueueState;
+} : never;
 
 export type TimelineRecord = WithQueued<CareRecord>;
 export type NativeTimelineRecord = Exclude<

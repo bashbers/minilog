@@ -70,6 +70,9 @@ class CareRecordPageResult:
     next_cursor: str | None
 
 
+ACTIVE_RECORD_TYPES = {RecordType.SLEEP, RecordType.BREASTFEEDING, RecordType.PUMPING}
+
+
 def encode_page_cursor(record: CareRecord) -> str:
     position = f"{record.occurred_at_utc}:{record.id}".encode()
     return b64encode(position, altchars=b"-_").decode().rstrip("=")
@@ -96,6 +99,7 @@ def list_records(
     record_types: list[RecordType] | None,
     date_from: date | None,
     date_to: date | None,
+    active_only: bool,
     limit: int,
 ) -> CareRecordPageResult:
     if db.get(Baby, baby_id) is None:
@@ -125,6 +129,11 @@ def list_records(
         )
     if record_types:
         statement = statement.where(CareRecord.record_type.in_(record_types))
+    if active_only:
+        statement = statement.where(
+            CareRecord.record_type.in_(ACTIVE_RECORD_TYPES),
+            CareRecord.ended_at_utc.is_(None),
+        )
     if date_from is not None:
         start = datetime.combine(date_from, time.min, tzinfo=household_time_zone)
         statement = statement.where(
@@ -145,11 +154,10 @@ def list_records(
 
 
 def active_statuses(db: Session) -> list[BabyActiveStatus]:
-    active_types = {RecordType.SLEEP, RecordType.BREASTFEEDING, RecordType.PUMPING}
     records = db.execute(
         select(CareRecord.baby_id, CareRecord.record_type)
         .where(
-            CareRecord.record_type.in_(active_types),
+            CareRecord.record_type.in_(ACTIVE_RECORD_TYPES),
             CareRecord.ended_at_utc.is_(None),
             CareRecord.deleted_at.is_(None),
         )

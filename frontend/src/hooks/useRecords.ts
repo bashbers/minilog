@@ -7,8 +7,11 @@ import { queuedTimelineRecord } from "../careRecordForms";
 import {
   cachedRecords,
   cacheRecords,
+  discardPendingCreation,
+  flushPending,
   pendingForBaby,
   queueCreation,
+  retryPendingCreation,
 } from "../offline/store";
 
 export function useRecords(babyId: string) {
@@ -19,14 +22,14 @@ export function useRecords(babyId: string) {
       try {
         const page = await api.records(babyId);
         await cacheRecords(babyId, page);
-        return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId)), ...page.items]
+        return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId, item.status, item.errorCode)), ...page.items]
           .sort(
             (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
           );
       } catch (error) {
         const cached = await cachedRecords(babyId);
         if (!cached) throw error;
-        return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId)), ...cached.items]
+        return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId, item.status, item.errorCode)), ...cached.items]
           .sort(
             (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
           );
@@ -41,14 +44,38 @@ export function useCreateRecord(babyId: string) {
     mutationFn: async (payload: CareRecordCreate) => {
       const mutationId = crypto.randomUUID();
       const identified = { ...payload, id: payload.id ?? crypto.randomUUID() } as CareRecordCreate;
+      await queueCreation(identified, mutationId);
       try {
-        return await api.createRecord(identified, mutationId);
+        const record = await api.createRecord(identified, mutationId);
+        await discardPendingCreation(mutationId);
+        return record;
       } catch (error) {
-        if (!(error instanceof TypeError)) throw error;
-        await queueCreation(identified, mutationId);
+        if (!(error instanceof TypeError)) {
+          await discardPendingCreation(mutationId);
+          throw error;
+        }
         return queuedTimelineRecord(identified, mutationId);
       }
     },
+    onSuccess: () => invalidateCareRecordQueries(queryClient, babyId),
+  });
+}
+
+export function useRetryQueuedCreation(babyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (mutationId: string) => {
+      await retryPendingCreation(mutationId);
+      await flushPending();
+    },
+    onSettled: () => invalidateCareRecordQueries(queryClient, babyId),
+  });
+}
+
+export function useDiscardQueuedCreation(babyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: discardPendingCreation,
     onSuccess: () => invalidateCareRecordQueries(queryClient, babyId),
   });
 }

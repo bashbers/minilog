@@ -46,6 +46,7 @@ async def list_care_records(
     record_type: Annotated[list[RecordType] | None, Query()] = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    active_only: bool = False,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> CareRecordPage:
     try:
@@ -56,6 +57,7 @@ async def list_care_records(
             record_types=record_type,
             date_from=date_from,
             date_to=date_to,
+            active_only=active_only,
             limit=limit,
         )
     except BabyNotFoundError as exc:

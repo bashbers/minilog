@@ -107,6 +107,8 @@ def test_every_native_record_type_round_trips() -> None:
                 foods="Banana",
                 amount_value="2",
                 amount_unit="spoons",
+                reaction_note="No reaction observed",
+                note="Ate with family",
             ),
             record_payload(baby_id, "sleep", ended_at="2026-09-09T13:00:00+02:00"),
             record_payload(baby_id, "diaper_change", is_wet=True, is_dirty=True),
@@ -146,8 +148,52 @@ def test_every_native_record_type_round_trips() -> None:
         assert {item["record_type"] for item in timeline["items"]} == {
             case["record_type"] for case in cases
         }
+        solid_food = next(
+            item for item in timeline["items"] if item["record_type"] == "solid_food_feeding"
+        )
+        assert solid_food["note"] == "Ate with family"
+        assert solid_food["details"]["reaction_note"] == "No reaction observed"
         sync = (await client.get("/api/v1/sync")).json()
         assert len(sync["changes"]) == len(cases)
+
+    asyncio.run(with_client(scenario))
+
+
+def test_active_record_filter_and_medication_unit_codes_are_explicit() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        headers = {"X-CSRF-Token": csrf}
+        active_sleep = await client.post(
+            "/api/v1/care-records",
+            headers={**headers, "X-Mutation-ID": str(uuid4())},
+            json=record_payload(baby_id, "sleep"),
+        )
+        assert active_sleep.status_code == 201
+        await client.post(
+            "/api/v1/care-records",
+            headers={**headers, "X-Mutation-ID": str(uuid4())},
+            json=record_payload(baby_id, "note", body="Not an active timer"),
+        )
+
+        active = await client.get(
+            "/api/v1/care-records",
+            params={"baby_id": baby_id, "active_only": "true"},
+        )
+        assert [item["record_type"] for item in active.json()["items"]] == ["sleep"]
+
+        invalid_unit = await client.post(
+            "/api/v1/care-records",
+            headers={**headers, "X-Mutation-ID": str(uuid4())},
+            json=record_payload(
+                baby_id,
+                "medication_administration",
+                medicine_name="Example medicine",
+                amount_value="1",
+                unit_code="spoonful",
+            ),
+        )
+        assert invalid_unit.status_code == 422
 
     asyncio.run(with_client(scenario))
 

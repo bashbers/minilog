@@ -51,6 +51,30 @@ const importedRecord = {
   note: null,
 };
 
+const measurementRecord = {
+  ...bottleRecord,
+  id: "a2601c80-66d5-49fd-87f2-004d7c594f23",
+  record_type: "measurement",
+  details: { kind: "weight", canonical_value: "7.2", canonical_unit: "kg", entered_value: "7.2", entered_unit: "kg" },
+  note: null,
+};
+
+const oldActiveSleep = {
+  ...bottleRecord,
+  id: "a2601c80-66d5-49fd-87f2-004d7c594f24",
+  record_type: "sleep",
+  occurred_at: new Date(Date.now() - 36 * 3_600_000).toISOString(),
+  details: {},
+  note: null,
+};
+
+const futureRecord = {
+  ...noteRecord,
+  id: "a2601c80-66d5-49fd-87f2-004d7c594f25",
+  occurred_at: new Date(Date.now() + 36 * 3_600_000).toISOString(),
+  details: { body: "Future care" },
+};
+
 async function mockApi(page: Page) {
   let recordDeleted = false;
   await page.route("**/api/v1/**", async (route) => {
@@ -83,13 +107,16 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/care-records" && request.method() === "GET") {
       if (recordDeleted) return json({ items: [], next_cursor: null });
+      if (url.searchParams.get("active_only") === "true") {
+        return json({ items: url.searchParams.get("baby_id") === babyId ? [oldActiveSleep] : [], next_cursor: null });
+      }
       if (url.searchParams.getAll("record_type").includes("imported_care_record")) {
         return json({ items: [importedRecord], next_cursor: null });
       }
       if (url.searchParams.has("cursor")) {
         return json({ items: [noteRecord], next_cursor: null });
       }
-      return json({ items: [bottleRecord], next_cursor: "older-page" });
+      return json({ items: [bottleRecord, measurementRecord, futureRecord], next_cursor: "older-page" });
     }
     if (path === `/api/v1/care-records/${bottleRecord.id}` && request.method() === "DELETE") {
       recordDeleted = true;
@@ -135,10 +162,19 @@ async function expectAccessible(page: Page) {
 }
 
 test("quick actions and record editing remain accessible on phone and desktop", async ({ page }) => {
+  test.setTimeout(45_000);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sleep" })).toBeVisible();
+  await expect(page.getByText("Future care")).toHaveCount(0);
   await expectAccessible(page);
-  await expect(page.getByRole("option", { name: "Noah · 1 active" })).toHaveCount(1);
+  const noahActive = page.getByRole("button", { name: "Noah 1 active" });
+  await expect(noahActive).toBeVisible();
+  await noahActive.click();
+  await expect(noahActive).toBeVisible();
+  await expect(noahActive).toHaveAttribute("aria-pressed", "true");
+  await page.getByLabel("Selected Baby").selectOption(babyId);
+  await expect(noahActive).toBeVisible();
 
   const add = page.getByRole("button", { name: "Add care record" });
   const addBox = await add.boundingBox();
@@ -156,14 +192,16 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   await page.keyboard.press("Escape");
   await expect(add).toBeFocused();
 
-  await page.getByLabel("Record options").click();
+  const bottleArticle = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Bottle feeding" }) });
+  const bottleOptions = bottleArticle.getByLabel("Record options");
+  await bottleOptions.click();
   await page.getByRole("button", { name: "Edit record" }).click();
   await expect(page.getByRole("dialog", { name: "Edit Bottle feeding" })).toBeVisible();
   await expect(page.getByLabel("Consumed (ml)")).toHaveValue("90");
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("Record options")).toBeFocused();
+  await expect(bottleOptions).toBeFocused();
 
-  await page.getByLabel("Record options").click();
+  await bottleOptions.click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete record" }).click();
   await expect(page.getByRole("heading", { name: "Bottle feeding" })).toHaveCount(0);
@@ -203,7 +241,7 @@ test("History filters every care type and loads an equal-timestamp-safe cursor",
 
   await expect(page.getByRole("heading", { name: "Bottle feeding" })).toBeVisible();
   await page.getByRole("button", { name: "Load older" }).click();
-  await expect(page.getByRole("heading", { name: "Note" })).toBeVisible();
+  await expect(page.getByRole("article").filter({ hasText: "A calm afternoon" }).getByRole("heading", { name: "Note" })).toBeVisible();
 
   await page.getByLabel("Care type").selectOption("imported_care_record");
   await expect(page.getByRole("heading", { name: "Imported care record" })).toBeVisible();
@@ -225,10 +263,32 @@ test("History filters every care type and loads an equal-timestamp-safe cursor",
 
 test("synced records stop offering mutations when the device goes offline", async ({ page, context }) => {
   await page.goto("/");
-  await expect(page.getByLabel("Record options")).toBeVisible();
+  await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Bottle feeding" }) }).getByLabel("Record options")).toBeVisible();
 
   await context.setOffline(true);
-  await expect(page.getByLabel("Reconnect to edit or delete")).toBeVisible();
+  await expect(page.getByLabel("Reconnect to edit or delete").first()).toBeVisible();
   await expect(page.getByLabel("Record options")).toHaveCount(0);
+  await expectAccessible(page);
+});
+
+test("Trends exposes complete periods and entered measurement facts", async ({ page }) => {
+  const requestedUrls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/care-records")) requestedUrls.push(request.url());
+  });
+  await page.goto("/trends");
+
+  await expect(page.getByRole("button", { name: "Daily" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "7 days" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "30 days" }).click();
+  await expect(page.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Weight" })).toBeVisible();
+  await expect(page.getByText("7.2")).toBeVisible();
+  await expect.poll(() => requestedUrls.some((requested) => {
+    const url = new URL(requested);
+    return url.searchParams.get("date_from") !== null
+      && url.searchParams.get("date_to") !== null
+      && url.searchParams.get("cursor") === "older-page";
+  })).toBe(true);
   await expectAccessible(page);
 });

@@ -260,11 +260,14 @@ class MeasurementCreate(RecordInputBase):
     entered_unit: str = Field(min_length=1, max_length=24)
 
 
+MedicationUnitCode = Literal["ml", "mg", "g", "mcg", "tablet", "drop"]
+
+
 class MedicationAdministrationCreate(RecordInputBase):
     record_type: Literal[RecordType.MEDICATION_ADMINISTRATION]
     medicine_name: str = Field(min_length=1, max_length=200)
     amount_value: Decimal = Field(gt=0)
-    unit_code: str | None = Field(default=None, max_length=32)
+    unit_code: MedicationUnitCode | None = None
     custom_unit: str | None = Field(default=None, max_length=40)
     route: str | None = Field(default=None, max_length=40)
 
@@ -352,7 +355,7 @@ class MeasurementDetails(APIModel):
 class MedicationAdministrationDetails(APIModel):
     medicine_name: str
     amount_value: Decimal
-    unit_code: str | None
+    unit_code: MedicationUnitCode | None
     custom_unit: str | None
     route: str | None
 

@@ -37,6 +37,7 @@ export interface RecordListOptions {
   recordTypes?: CareRecord["record_type"][];
   dateFrom?: string;
   dateTo?: string;
+  activeOnly?: boolean;
   limit?: number;
 }
 
@@ -75,6 +76,37 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+function careRecordListPath(babyId: string, options: RecordListOptions): string {
+  const parameters = new URLSearchParams({
+    baby_id: babyId,
+    limit: String(options.limit ?? 200),
+  });
+  if (options.cursor) parameters.set("cursor", options.cursor);
+  if (options.dateFrom) parameters.set("date_from", options.dateFrom);
+  if (options.dateTo) parameters.set("date_to", options.dateTo);
+  if (options.activeOnly) parameters.set("active_only", "true");
+  options.recordTypes?.forEach((recordType) =>
+    parameters.append("record_type", recordType),
+  );
+  return `/care-records?${parameters.toString()}`;
+}
+
+async function allCareRecords(
+  babyId: string,
+  options: Omit<RecordListOptions, "cursor"> = {},
+): Promise<CareRecord[]> {
+  const records: CareRecord[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await request<CareRecordPage>(
+      careRecordListPath(babyId, { ...options, cursor }),
+    );
+    records.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return records;
+}
+
 export const api = {
   setupStatus: () => request<SetupStatus>("/setup"),
   setup: (payload: SetupRequest) =>
@@ -98,19 +130,9 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ confirmation }),
     }),
-  records: (babyId: string, options: RecordListOptions = {}) => {
-    const parameters = new URLSearchParams({
-      baby_id: babyId,
-      limit: String(options.limit ?? 200),
-    });
-    if (options.cursor) parameters.set("cursor", options.cursor);
-    if (options.dateFrom) parameters.set("date_from", options.dateFrom);
-    if (options.dateTo) parameters.set("date_to", options.dateTo);
-    options.recordTypes?.forEach((recordType) =>
-      parameters.append("record_type", recordType),
-    );
-    return request<CareRecordPage>(`/care-records?${parameters.toString()}`);
-  },
+  records: (babyId: string, options: RecordListOptions = {}) =>
+    request<CareRecordPage>(careRecordListPath(babyId, options)),
+  allRecords: allCareRecords,
   createRecord: (payload: CareRecordCreate, mutationId: string) =>
     request<CareRecord>("/care-records", {
       method: "POST",

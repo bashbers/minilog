@@ -5,7 +5,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, ApiError } from "./api/client";
 import type { Baby, Caregiver, TimelineRecord } from "./api/types";
-import { careActions, careRecordSummaryValues, careRecordTypesForGroup, isActiveCareRecord } from "./careRecordForms";
+import { careActions, careRecordSummaryValues, careRecordTypesForGroup, careSummaryCatalog, isActiveCareRecord } from "./careRecordForms";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { BabyOnboarding } from "./components/BabyOnboarding";
 import { QuickAdd } from "./components/QuickAdd";
@@ -14,6 +14,7 @@ import { Timeline } from "./components/Timeline";
 import { Trends } from "./components/Trends";
 import { useForegroundSync } from "./hooks/useForegroundSync";
 import { useRecords } from "./hooks/useRecords";
+import { dateKeyInTimeZone, shiftDateKey } from "./lib/time";
 import { clearLocalData } from "./offline/store";
 
 function AuthGate() {
@@ -38,6 +39,7 @@ function ErrorScreen() {
 function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   useForegroundSync();
   const babies = useQuery({ queryKey: ["babies"], queryFn: api.babies });
+  const household = useQuery({ queryKey: ["household"], queryFn: api.household });
   const activeStatuses = useQuery({
     queryKey: ["baby-active-statuses"],
     queryFn: api.babyActiveStatuses,
@@ -64,7 +66,8 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
     }
   }, [babies.data, selectedId]);
 
-  if (babies.isLoading) return <LoadingScreen />;
+  if (babies.isLoading || household.isLoading) return <LoadingScreen />;
+  if (!household.data) return <ErrorScreen />;
   if (!babies.data?.length) return <BabyOnboarding />;
   const baby = babies.data.find((item) => item.id === selectedId) ?? babies.data[0];
   const activeByBaby = new Map(
@@ -79,30 +82,31 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <label className="baby-picker">
-          <span className="sr-only">Selected Baby</span>
-          <BabyPicture baby={baby} />
-          <select value={baby.id} onChange={(event) => selectBaby(event.target.value)}>
-            {babies.data.map((item) => {
-              const activeCount = activeByBaby.get(item.id) ?? 0;
-              return <option value={item.id} key={item.id}>{item.display_name}{activeCount ? ` · ${activeCount} active` : ""}</option>;
-            })}
-          </select>
-          {(activeByBaby.get(baby.id) ?? 0) > 0 && <span className="active-baby-indicator">{activeByBaby.get(baby.id)} active</span>}
-        </label>
-        <label className="picture-upload" title="Change profile picture">
-          <Upload aria-hidden="true" />
-          <span className="sr-only">Change profile picture</span>
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await queryClient.invalidateQueries({ queryKey: ["babies"] }); } }} />
-        </label>
-        <NavLink className="ghost icon-button topbar-link" to="/settings" aria-label="Settings"><Settings /></NavLink>
-        <button className="ghost icon-button" onClick={() => logout.mutate()} aria-label="Sign out"><LogOut /></button>
+        <div className="topbar-main">
+          <label className="baby-picker">
+            <span className="sr-only">Selected Baby</span>
+            <BabyPicture baby={baby} />
+            <select value={baby.id} onChange={(event) => selectBaby(event.target.value)}>
+              {babies.data.map((item) => <option value={item.id} key={item.id}>{item.display_name}</option>)}
+            </select>
+          </label>
+          <label className="picture-upload" title="Change profile picture">
+            <Upload aria-hidden="true" />
+            <span className="sr-only">Change profile picture</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await queryClient.invalidateQueries({ queryKey: ["babies"] }); } }} />
+          </label>
+          <NavLink className="ghost icon-button topbar-link" to="/settings" aria-label="Settings"><Settings /></NavLink>
+          <button className="ghost icon-button" onClick={() => logout.mutate()} aria-label="Sign out"><LogOut /></button>
+        </div>
+        {[...activeByBaby.values()].some((count) => count > 0) && <div className="active-baby-strip" aria-label="Active care by Baby">
+          {babies.data.filter((item) => (activeByBaby.get(item.id) ?? 0) > 0).map((item) => <button type="button" key={item.id} aria-pressed={item.id === baby.id} onClick={() => selectBaby(item.id)}><span>{item.display_name}</span><strong>{activeByBaby.get(item.id)} active</strong></button>)}
+        </div>}
       </header>
 
       <Routes>
-        <Route path="/today" element={<TodayPage baby={baby} />} />
+        <Route path="/today" element={<TodayPage baby={baby} timeZone={household.data.time_zone} />} />
         <Route path="/history" element={<HistoryPage baby={baby} />} />
-        <Route path="/trends" element={<TrendsPage baby={baby} />} />
+        <Route path="/trends" element={<TrendsPage baby={baby} timeZone={household.data.time_zone} />} />
         <Route path="/settings" element={<SettingsPage baby={baby} caregiver={caregiver} />} />
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Routes>
@@ -125,19 +129,36 @@ function BabyPicture({ baby }: { baby: Baby }) {
   return <span className="baby-picture placeholder"><BabyIcon /></span>;
 }
 
-function TodayPage({ baby }: { baby: Baby }) {
-  const records = useRecords(baby.id);
+function TodayPage({ baby, timeZone }: { baby: Baby; timeZone: string }) {
+  const recentRecords = useRecords(baby.id);
+  const todayKey = dateKeyInTimeZone(new Date(), timeZone);
+  const dayRecords = useQuery({
+    queryKey: ["today-records", baby.id, todayKey],
+    queryFn: () => api.allRecords(baby.id, { dateFrom: todayKey, dateTo: todayKey }),
+  });
+  const activeRecords = useQuery({
+    queryKey: ["active-records", baby.id],
+    queryFn: () => api.allRecords(baby.id, { activeOnly: true }),
+    refetchInterval: 5_000,
+  });
   const today = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return (records.data ?? []).filter((record) => new Date(record.occurred_at) >= start);
-  }, [records.data]);
+    const now = Date.now();
+    const queued = (recentRecords.data ?? []).filter((record) => record.queued);
+    const persisted = dayRecords.data ?? (recentRecords.data ?? []).filter((record) => !record.queued);
+    const combined = [...queued, ...persisted, ...(activeRecords.data ?? [])];
+    return [...new Map(combined.map((record) => [record.id, record])).values()]
+      .filter((record) => isActiveCareRecord(record) || (
+        dateKeyInTimeZone(record.occurred_at, timeZone) === todayKey
+        && new Date(record.occurred_at).getTime() <= now
+      ))
+      .sort((left, right) => new Date(right.occurred_at).getTime() - new Date(left.occurred_at).getTime());
+  }, [activeRecords.data, dayRecords.data, recentRecords.data, timeZone, todayKey]);
   const active = today.filter(isActiveCareRecord);
   return (
     <main className="page">
       <div className="page-heading"><div><p className="eyebrow">{new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</p><h1>{active.length ? `${active.length} active now` : "Today's care"}</h1></div><span className={`status-pill ${navigator.onLine ? "online" : "offline"}`}>{navigator.onLine ? "Synced" : "Offline"}</span></div>
       <DailySummary records={today} />
-      {records.isLoading ? <div className="skeleton-list" /> : <Timeline records={today} babyId={baby.id} />}
+      {recentRecords.isLoading && dayRecords.isLoading ? <div className="skeleton-list" /> : <Timeline records={today} babyId={baby.id} />}
     </main>
   );
 }
@@ -192,17 +213,29 @@ function ImportedDailyNotes({ babyId, dateFrom, dateTo }: { babyId: string; date
   return <section className="daily-notes" aria-label="Imported daily notes"><p className="eyebrow">PiyoLog daily notes</p>{visible.map((note) => <article key={note.id}><time>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(`${note.local_date}T12:00:00`))}</time><p>{note.body}</p></article>)}</section>;
 }
 
-function TrendsPage({ baby }: { baby: Baby }) {
-  const records = useRecords(baby.id);
-  return <main className="page"><div className="page-heading"><div><p className="eyebrow">Patterns for {baby.display_name}</p><h1>Trends</h1></div></div><Trends records={records.data ?? []} /></main>;
+function TrendsPage({ baby, timeZone }: { baby: Baby; timeZone: string }) {
+  const [days, setDays] = useState<1 | 7 | 30>(7);
+  const todayKey = dateKeyInTimeZone(new Date(), timeZone);
+  const dateFrom = shiftDateKey(todayKey, 1 - days);
+  const records = useQuery({
+    queryKey: ["trend-records", baby.id, dateFrom, todayKey],
+    queryFn: () => api.allRecords(baby.id, { dateFrom, dateTo: todayKey }),
+  });
+  return <main className="page"><div className="page-heading"><div><p className="eyebrow">Patterns for {baby.display_name}</p><h1>Trends</h1></div></div><Trends records={records.data ?? []} timeZone={timeZone} days={days} onDaysChange={setDays} /></main>;
 }
 
 function DailySummary({ records }: { records: TimelineRecord[] }) {
   const summaryTotal = (key: string) => records.reduce((total, record) => total + careRecordSummaryValues(record).filter((summary) => summary.key === key).reduce((recordTotal, summary) => recordTotal + summary.value, 0), 0);
-  const feeds = summaryTotal("feeds");
-  const sleep = summaryTotal("sleep") / 60;
-  const diapers = summaryTotal("diaper_changes");
-  return <section className="daily-summary" aria-label="Today's totals"><div><span>Feeds</span><strong>{feeds}</strong></div><div><span>Sleep</span><strong>{sleep.toFixed(1)}h</strong></div><div><span>Diaper changes</span><strong>{diapers}</strong></div></section>;
+  const measurements = records.filter(
+    (record): record is Extract<TimelineRecord, { record_type: "measurement" }> =>
+      record.record_type === "measurement",
+  ).filter((record, index, all) => all.findIndex((candidate) =>
+    candidate.details.kind === record.details.kind
+    && candidate.details.entered_unit === record.details.entered_unit) === index);
+  return <section className="daily-summary" aria-label="Today's totals">
+    {careSummaryCatalog.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Math.round(summaryTotal(metric.key))}{metric.suffix ? ` ${metric.suffix}` : ""}</strong></div>)}
+    {measurements.map((record) => <div key={record.id}><span>Latest {record.details.kind}</span><strong>{Number(record.details.entered_value)} {record.details.entered_unit}</strong></div>)}
+  </section>;
 }
 
 export function App() {

@@ -36,6 +36,26 @@ test("builds stable history cursor and filter parameters", async () => {
   expect(requestUrl.searchParams.get("limit")).toBe("50");
 });
 
+test("fetches every page in a bounded active-record query", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "first" }], next_cursor: "next" }), { headers: { "Content-Type": "application/json" } }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "second" }], next_cursor: null }), { headers: { "Content-Type": "application/json" } }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const records = await api.allRecords("baby-id", {
+    dateFrom: "2026-09-01",
+    dateTo: "2026-09-30",
+    activeOnly: true,
+  });
+
+  expect(records.map((record) => record.id)).toEqual(["first", "second"]);
+  const firstUrl = new URL(String(fetchMock.mock.calls[0][0]), "http://minilog.test");
+  const secondUrl = new URL(String(fetchMock.mock.calls[1][0]), "http://minilog.test");
+  expect(firstUrl.searchParams.get("active_only")).toBe("true");
+  expect(firstUrl.searchParams.get("date_from")).toBe("2026-09-01");
+  expect(secondUrl.searchParams.get("cursor")).toBe("next");
+});
+
 test("preserves the current care record from a stale-revision response", async () => {
   const current: CareRecord = {
     id: "record-id",
