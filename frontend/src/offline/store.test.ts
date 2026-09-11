@@ -53,5 +53,8 @@ test("keeps only seven recent days in the offline timeline cache", async () => {
   await cacheRecords(babyId, page);
   const cached = await cachedRecords(babyId);
   expect(cached?.items).toHaveLength(1);
-  expect(cached?.items[0].details.body).toBe("recent");
+  const cachedRecord = cached?.items[0];
+  expect(cachedRecord?.record_type).toBe("note");
+  if (cachedRecord?.record_type !== "note") throw new Error("Expected a cached note");
+  expect(cachedRecord.details.body).toBe("recent");
 });

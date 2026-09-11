@@ -634,6 +634,64 @@ export interface components {
              */
             contents: "breast_milk" | "formula" | "mixed" | "other";
         };
+        /** BottleFeedingDetails */
+        BottleFeedingDetails: {
+            /** Consumed Ml */
+            consumed_ml: number;
+            /** Offered Ml */
+            offered_ml: number | null;
+            /**
+             * Contents
+             * @enum {string}
+             */
+            contents: "breast_milk" | "formula" | "mixed" | "other";
+        };
+        /** BottleFeedingOut */
+        BottleFeedingOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "bottle_feeding";
+            details: components["schemas"]["BottleFeedingDetails"];
+        };
         /** BreastfeedingCreate */
         BreastfeedingCreate: {
             /** Id */
@@ -664,6 +722,13 @@ export interface components {
             /** Intervals */
             intervals?: components["schemas"]["BreastfeedingIntervalInput"][];
         };
+        /** BreastfeedingDetails */
+        BreastfeedingDetails: {
+            /** Estimated Amount Ml */
+            estimated_amount_ml: number | null;
+            /** Intervals */
+            intervals: components["schemas"]["BreastfeedingIntervalInput"][];
+        };
         /** BreastfeedingIntervalInput */
         BreastfeedingIntervalInput: {
             /**
@@ -679,13 +744,8 @@ export interface components {
             /** Ended At */
             ended_at?: string | null;
         };
-        /** CareRecordConflictResponse */
-        CareRecordConflictResponse: {
-            /** Detail */
-            detail: components["schemas"]["StaleRevisionDetail"] | string;
-        };
-        /** CareRecordOut */
-        CareRecordOut: {
+        /** BreastfeedingOut */
+        BreastfeedingOut: {
             /**
              * Id
              * Format: uuid
@@ -696,7 +756,6 @@ export interface components {
              * Format: uuid
              */
             baby_id: string;
-            record_type: components["schemas"]["RecordType"];
             /**
              * Occurred At
              * Format: date-time
@@ -724,11 +783,20 @@ export interface components {
             updated_at: string;
             /** Revision */
             revision: number;
-            /** Details */
-            details: {
-                [key: string]: unknown;
-            };
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "breastfeeding";
+            details: components["schemas"]["BreastfeedingDetails"];
         };
+        /** CareRecordConflictResponse */
+        CareRecordConflictResponse: {
+            /** Detail */
+            detail: components["schemas"]["StaleRevisionDetail"] | string;
+        };
+        /** CareRecordOut */
+        CareRecordOut: components["schemas"]["BreastfeedingOut"] | components["schemas"]["BottleFeedingOut"] | components["schemas"]["SolidFoodFeedingOut"] | components["schemas"]["SleepOut"] | components["schemas"]["DiaperChangeOut"] | components["schemas"]["PumpingOut"] | components["schemas"]["MeasurementOut"] | components["schemas"]["MedicationAdministrationOut"] | components["schemas"]["NoteOut"] | components["schemas"]["ImportedCareRecordOut"];
         /** CareRecordPage */
         CareRecordPage: {
             /** Items */
@@ -814,6 +882,63 @@ export interface components {
             /** Stool Consistency */
             stool_consistency?: string | null;
         };
+        /** DiaperChangeDetails */
+        DiaperChangeDetails: {
+            /** Is Wet */
+            is_wet: boolean;
+            /** Is Dirty */
+            is_dirty: boolean;
+            /** Stool Colour */
+            stool_colour: string | null;
+            /** Stool Consistency */
+            stool_consistency: string | null;
+        };
+        /** DiaperChangeOut */
+        DiaperChangeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "diaper_change";
+            details: components["schemas"]["DiaperChangeDetails"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -873,6 +998,61 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** ImportedCareRecordDetails */
+        ImportedCareRecordDetails: {
+            /** Raw Label */
+            raw_label: string;
+            /** Raw Details */
+            raw_details: string | null;
+            /** Raw Line */
+            raw_line: string;
+        };
+        /** ImportedCareRecordOut */
+        ImportedCareRecordOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "imported_care_record";
+            details: components["schemas"]["ImportedCareRecordDetails"];
         };
         /** ImportedDailyNoteOut */
         ImportedDailyNoteOut: {
@@ -972,6 +1152,68 @@ export interface components {
             /** Entered Unit */
             entered_unit: string;
         };
+        /** MeasurementDetails */
+        MeasurementDetails: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "weight" | "height" | "temperature";
+            /** Canonical Value */
+            canonical_value: string;
+            /** Canonical Unit */
+            canonical_unit: string;
+            /** Entered Value */
+            entered_value: string;
+            /** Entered Unit */
+            entered_unit: string;
+        };
+        /** MeasurementOut */
+        MeasurementOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "measurement";
+            details: components["schemas"]["MeasurementDetails"];
+        };
         /**
          * MeasurementSystem
          * @enum {string}
@@ -1013,6 +1255,65 @@ export interface components {
             /** Route */
             route?: string | null;
         };
+        /** MedicationAdministrationDetails */
+        MedicationAdministrationDetails: {
+            /** Medicine Name */
+            medicine_name: string;
+            /** Amount Value */
+            amount_value: string;
+            /** Unit Code */
+            unit_code: string | null;
+            /** Custom Unit */
+            custom_unit: string | null;
+            /** Route */
+            route: string | null;
+        };
+        /** MedicationAdministrationOut */
+        MedicationAdministrationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "medication_administration";
+            details: components["schemas"]["MedicationAdministrationDetails"];
+        };
         /** NoteCreate */
         NoteCreate: {
             /** Id */
@@ -1040,6 +1341,57 @@ export interface components {
             record_type: "note";
             /** Body */
             body: string;
+        };
+        /** NoteDetails */
+        NoteDetails: {
+            /** Body */
+            body: string;
+        };
+        /** NoteOut */
+        NoteOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "note";
+            details: components["schemas"]["NoteDetails"];
         };
         /** PasswordChange */
         PasswordChange: {
@@ -1105,6 +1457,57 @@ export interface components {
             record_type: "pumping";
             /** Expressed Ml */
             expressed_ml?: number | null;
+        };
+        /** PumpingDetails */
+        PumpingDetails: {
+            /** Expressed Ml */
+            expressed_ml: number | null;
+        };
+        /** PumpingOut */
+        PumpingOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "pumping";
+            details: components["schemas"]["PumpingDetails"];
         };
         /** QuickActionPreferenceInput */
         QuickActionPreferenceInput: {
@@ -1190,6 +1593,54 @@ export interface components {
              */
             record_type: "sleep";
         };
+        /** SleepDetails */
+        SleepDetails: Record<string, never>;
+        /** SleepOut */
+        SleepOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "sleep";
+            details: components["schemas"]["SleepDetails"];
+        };
         /** SolidFoodFeedingCreate */
         SolidFoodFeedingCreate: {
             /** Id */
@@ -1223,6 +1674,63 @@ export interface components {
             amount_unit?: string | null;
             /** Reaction Note */
             reaction_note?: string | null;
+        };
+        /** SolidFoodFeedingDetails */
+        SolidFoodFeedingDetails: {
+            /** Foods */
+            foods: string;
+            /** Amount Value */
+            amount_value: string | null;
+            /** Amount Unit */
+            amount_unit: string | null;
+            /** Reaction Note */
+            reaction_note: string | null;
+        };
+        /** SolidFoodFeedingOut */
+        SolidFoodFeedingOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Baby Id
+             * Format: uuid
+             */
+            baby_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Local Offset Minutes */
+            local_offset_minutes: number;
+            /** Note */
+            note: string | null;
+            /** Author Label */
+            author_label: string;
+            /** Last Modified By Label */
+            last_modified_by_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Revision */
+            revision: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            record_type: "solid_food_feeding";
+            details: components["schemas"]["SolidFoodFeedingDetails"];
         };
         /** StaleRevisionDetail */
         StaleRevisionDetail: {

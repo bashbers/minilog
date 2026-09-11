@@ -3346,6 +3346,135 @@
         ],
         "title": "BottleFeedingCreate"
       },
+      "BottleFeedingDetails": {
+        "properties": {
+          "consumed_ml": {
+            "type": "integer",
+            "title": "Consumed Ml"
+          },
+          "offered_ml": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offered Ml"
+          },
+          "contents": {
+            "type": "string",
+            "enum": [
+              "breast_milk",
+              "formula",
+              "mixed",
+              "other"
+            ],
+            "title": "Contents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "consumed_ml",
+          "offered_ml",
+          "contents"
+        ],
+        "title": "BottleFeedingDetails"
+      },
+      "BottleFeedingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "bottle_feeding",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/BottleFeedingDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "BottleFeedingOut"
+      },
       "BreastfeedingCreate": {
         "properties": {
           "id": {
@@ -3436,6 +3565,34 @@
         ],
         "title": "BreastfeedingCreate"
       },
+      "BreastfeedingDetails": {
+        "properties": {
+          "estimated_amount_ml": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Amount Ml"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/BreastfeedingIntervalInput"
+            },
+            "type": "array",
+            "title": "Intervals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimated_amount_ml",
+          "intervals"
+        ],
+        "title": "BreastfeedingDetails"
+      },
       "BreastfeedingIntervalInput": {
         "properties": {
           "side": {
@@ -3471,27 +3628,7 @@
         ],
         "title": "BreastfeedingIntervalInput"
       },
-      "CareRecordConflictResponse": {
-        "properties": {
-          "detail": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StaleRevisionDetail"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "detail"
-        ],
-        "title": "CareRecordConflictResponse"
-      },
-      "CareRecordOut": {
+      "BreastfeedingOut": {
         "properties": {
           "id": {
             "type": "string",
@@ -3502,9 +3639,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Baby Id"
-          },
-          "record_type": {
-            "$ref": "#/components/schemas/RecordType"
           },
           "occurred_at": {
             "type": "string",
@@ -3560,17 +3694,19 @@
             "type": "integer",
             "title": "Revision"
           },
+          "record_type": {
+            "type": "string",
+            "const": "breastfeeding",
+            "title": "Record Type"
+          },
           "details": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Details"
+            "$ref": "#/components/schemas/BreastfeedingDetails"
           }
         },
         "type": "object",
         "required": [
           "id",
           "baby_id",
-          "record_type",
           "occurred_at",
           "ended_at",
           "local_offset_minutes",
@@ -3580,9 +3716,80 @@
           "created_at",
           "updated_at",
           "revision",
+          "record_type",
           "details"
         ],
-        "title": "CareRecordOut"
+        "title": "BreastfeedingOut"
+      },
+      "CareRecordConflictResponse": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaleRevisionDetail"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "CareRecordConflictResponse"
+      },
+      "CareRecordOut": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/BreastfeedingOut"
+          },
+          {
+            "$ref": "#/components/schemas/BottleFeedingOut"
+          },
+          {
+            "$ref": "#/components/schemas/SolidFoodFeedingOut"
+          },
+          {
+            "$ref": "#/components/schemas/SleepOut"
+          },
+          {
+            "$ref": "#/components/schemas/DiaperChangeOut"
+          },
+          {
+            "$ref": "#/components/schemas/PumpingOut"
+          },
+          {
+            "$ref": "#/components/schemas/MeasurementOut"
+          },
+          {
+            "$ref": "#/components/schemas/MedicationAdministrationOut"
+          },
+          {
+            "$ref": "#/components/schemas/NoteOut"
+          },
+          {
+            "$ref": "#/components/schemas/ImportedCareRecordOut"
+          }
+        ],
+        "title": "CareRecordOut",
+        "discriminator": {
+          "propertyName": "record_type",
+          "mapping": {
+            "bottle_feeding": "#/components/schemas/BottleFeedingOut",
+            "breastfeeding": "#/components/schemas/BreastfeedingOut",
+            "diaper_change": "#/components/schemas/DiaperChangeOut",
+            "imported_care_record": "#/components/schemas/ImportedCareRecordOut",
+            "measurement": "#/components/schemas/MeasurementOut",
+            "medication_administration": "#/components/schemas/MedicationAdministrationOut",
+            "note": "#/components/schemas/NoteOut",
+            "pumping": "#/components/schemas/PumpingOut",
+            "sleep": "#/components/schemas/SleepOut",
+            "solid_food_feeding": "#/components/schemas/SolidFoodFeedingOut"
+          }
+        }
       },
       "CareRecordPage": {
         "properties": {
@@ -3858,6 +4065,141 @@
         ],
         "title": "DiaperChangeCreate"
       },
+      "DiaperChangeDetails": {
+        "properties": {
+          "is_wet": {
+            "type": "boolean",
+            "title": "Is Wet"
+          },
+          "is_dirty": {
+            "type": "boolean",
+            "title": "Is Dirty"
+          },
+          "stool_colour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Colour"
+          },
+          "stool_consistency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stool Consistency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_wet",
+          "is_dirty",
+          "stool_colour",
+          "stool_consistency"
+        ],
+        "title": "DiaperChangeDetails"
+      },
+      "DiaperChangeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "diaper_change",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/DiaperChangeDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "DiaperChangeOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4002,6 +4344,129 @@
           "created_at"
         ],
         "title": "ImportBatchOut"
+      },
+      "ImportedCareRecordDetails": {
+        "properties": {
+          "raw_label": {
+            "type": "string",
+            "title": "Raw Label"
+          },
+          "raw_details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Details"
+          },
+          "raw_line": {
+            "type": "string",
+            "title": "Raw Line"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_label",
+          "raw_details",
+          "raw_line"
+        ],
+        "title": "ImportedCareRecordDetails"
+      },
+      "ImportedCareRecordOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "imported_care_record",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ImportedCareRecordDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "ImportedCareRecordOut"
       },
       "ImportedDailyNoteOut": {
         "properties": {
@@ -4282,6 +4747,139 @@
         ],
         "title": "MeasurementCreate"
       },
+      "MeasurementDetails": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "weight",
+              "height",
+              "temperature"
+            ],
+            "title": "Kind"
+          },
+          "canonical_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Canonical Value"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "title": "Canonical Unit"
+          },
+          "entered_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Entered Value"
+          },
+          "entered_unit": {
+            "type": "string",
+            "title": "Entered Unit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "canonical_value",
+          "canonical_unit",
+          "entered_value",
+          "entered_unit"
+        ],
+        "title": "MeasurementDetails"
+      },
+      "MeasurementOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "measurement",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/MeasurementDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "MeasurementOut"
+      },
       "MeasurementSystem": {
         "type": "string",
         "enum": [
@@ -4416,6 +5014,154 @@
         ],
         "title": "MedicationAdministrationCreate"
       },
+      "MedicationAdministrationDetails": {
+        "properties": {
+          "medicine_name": {
+            "type": "string",
+            "title": "Medicine Name"
+          },
+          "amount_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount Value"
+          },
+          "unit_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Code"
+          },
+          "custom_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Unit"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicine_name",
+          "amount_value",
+          "unit_code",
+          "custom_unit",
+          "route"
+        ],
+        "title": "MedicationAdministrationDetails"
+      },
+      "MedicationAdministrationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "medication_administration",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/MedicationAdministrationDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "MedicationAdministrationOut"
+      },
       "NoteCreate": {
         "properties": {
           "id": {
@@ -4491,6 +5237,112 @@
           "body"
         ],
         "title": "NoteCreate"
+      },
+      "NoteDetails": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "NoteDetails"
+      },
+      "NoteOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "note",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/NoteDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "NoteOut"
       },
       "PasswordChange": {
         "properties": {
@@ -4685,6 +5537,119 @@
           "record_type"
         ],
         "title": "PumpingCreate"
+      },
+      "PumpingDetails": {
+        "properties": {
+          "expressed_ml": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expressed Ml"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expressed_ml"
+        ],
+        "title": "PumpingDetails"
+      },
+      "PumpingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "pumping",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/PumpingDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "PumpingOut"
       },
       "QuickActionPreferenceInput": {
         "properties": {
@@ -4910,6 +5875,104 @@
         ],
         "title": "SleepCreate"
       },
+      "SleepDetails": {
+        "properties": {},
+        "type": "object",
+        "title": "SleepDetails"
+      },
+      "SleepOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "sleep",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/SleepDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "SleepOut"
+      },
       "SolidFoodFeedingCreate": {
         "properties": {
           "id": {
@@ -5025,6 +6088,149 @@
           "foods"
         ],
         "title": "SolidFoodFeedingCreate"
+      },
+      "SolidFoodFeedingDetails": {
+        "properties": {
+          "foods": {
+            "type": "string",
+            "title": "Foods"
+          },
+          "amount_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Value"
+          },
+          "amount_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Unit"
+          },
+          "reaction_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reaction Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "foods",
+          "amount_value",
+          "amount_unit",
+          "reaction_note"
+        ],
+        "title": "SolidFoodFeedingDetails"
+      },
+      "SolidFoodFeedingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "baby_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Baby Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "local_offset_minutes": {
+            "type": "integer",
+            "title": "Local Offset Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "last_modified_by_label": {
+            "type": "string",
+            "title": "Last Modified By Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "record_type": {
+            "type": "string",
+            "const": "solid_food_feeding",
+            "title": "Record Type"
+          },
+          "details": {
+            "$ref": "#/components/schemas/SolidFoodFeedingDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "baby_id",
+          "occurred_at",
+          "ended_at",
+          "local_offset_minutes",
+          "note",
+          "author_label",
+          "last_modified_by_label",
+          "created_at",
+          "updated_at",
+          "revision",
+          "record_type",
+          "details"
+        ],
+        "title": "SolidFoodFeedingOut"
       },
       "StaleRevisionDetail": {
         "properties": {

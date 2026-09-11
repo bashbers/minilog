@@ -5,7 +5,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, ApiError } from "./api/client";
 import type { Baby, Caregiver, TimelineRecord } from "./api/types";
-import { careActions, careRecordSummaryValues, careRecordTypesForGroup, timelineRecords } from "./careRecordForms";
+import { careActions, careRecordSummaryValues, careRecordTypesForGroup, isActiveCareRecord } from "./careRecordForms";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { BabyOnboarding } from "./components/BabyOnboarding";
 import { QuickAdd } from "./components/QuickAdd";
@@ -132,7 +132,7 @@ function TodayPage({ baby }: { baby: Baby }) {
     start.setHours(0, 0, 0, 0);
     return (records.data ?? []).filter((record) => new Date(record.occurred_at) >= start);
   }, [records.data]);
-  const active = today.filter((record) => !record.ended_at && ["sleep", "breastfeeding", "pumping"].includes(record.record_type));
+  const active = today.filter(isActiveCareRecord);
   return (
     <main className="page">
       <div className="page-heading"><div><p className="eyebrow">{new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</p><h1>{active.length ? `${active.length} active now` : "Today's care"}</h1></div><span className={`status-pill ${navigator.onLine ? "online" : "offline"}`}>{navigator.onLine ? "Synced" : "Offline"}</span></div>
@@ -165,7 +165,7 @@ function HistoryPage({ baby }: { baby: Baby }) {
       return lastPage.next_cursor ?? undefined;
     },
   });
-  const visible = timelineRecords(history.data?.pages.flatMap((page) => page.items) ?? []);
+  const visible = history.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <main className="page">
       <div className="page-heading"><div><p className="eyebrow">For {baby.display_name}</p><h1>History</h1></div></div>

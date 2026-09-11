@@ -5,30 +5,19 @@ import { ApiError } from "../api/client";
 import type {
   BreastfeedingTimelineRecord,
   CareRecordCreate,
-  PumpingTimelineRecord,
-  SleepTimelineRecord,
   TimelineRecord,
 } from "../api/types";
-import { careRecordDetail, careRecordLabel } from "../careRecordForms";
+import { careRecordDetail, careRecordLabel, isActiveCareRecord, type ActiveTimedTimelineRecord } from "../careRecordForms";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useDeleteRecord, useUpdateRecord } from "../hooks/useRecords";
 import { formatDay, formatTime } from "../lib/time";
 import { EditRecordSheet } from "./EditRecordSheet";
 
-type ActiveTimedRecord =
-  | BreastfeedingTimelineRecord
-  | PumpingTimelineRecord
-  | SleepTimelineRecord;
+type BreastfeedingIntervals = NonNullable<
+  Extract<CareRecordCreate, { record_type: "breastfeeding" }>["intervals"]
+>;
 
-function isActiveTimedRecord(record: TimelineRecord): record is ActiveTimedRecord {
-  return !record.ended_at && (
-    record.record_type === "sleep"
-    || record.record_type === "breastfeeding"
-    || record.record_type === "pumping"
-  );
-}
-
-function stoppedPayload(record: ActiveTimedRecord): CareRecordCreate {
+function stoppedPayload(record: ActiveTimedTimelineRecord): CareRecordCreate {
   const endedAt = new Date().toISOString();
   const common = {
     id: record.id,
@@ -46,12 +35,10 @@ function stoppedPayload(record: ActiveTimedRecord): CareRecordCreate {
       expressed_ml: Number(record.details.expressed_ml) || null,
     };
   }
-  const intervals: { side: "left" | "right"; started_at: string; ended_at: string | null }[] = Array.isArray(record.details.intervals)
-    ? record.details.intervals.map((item) => {
-        const interval = item as { side: "left" | "right"; started_at: string; ended_at: string | null };
-        return { ...interval, ended_at: interval.ended_at ?? endedAt };
-      })
-    : [];
+  const intervals: BreastfeedingIntervals = record.details.intervals.map((interval) => ({
+    ...interval,
+    ended_at: interval.ended_at ?? endedAt,
+  }));
   return {
     ...common,
     record_type: "breastfeeding",
@@ -62,12 +49,10 @@ function stoppedPayload(record: ActiveTimedRecord): CareRecordCreate {
 
 function switchSidePayload(record: BreastfeedingTimelineRecord): CareRecordCreate {
   const switchedAt = new Date().toISOString();
-  const intervals: { side: "left" | "right"; started_at: string; ended_at: string | null }[] = Array.isArray(record.details.intervals)
-    ? record.details.intervals.map((item) => {
-        const interval = item as { side: "left" | "right"; started_at: string; ended_at: string | null };
-        return { ...interval, ended_at: interval.ended_at ?? switchedAt };
-      })
-    : [];
+  const intervals: BreastfeedingIntervals = record.details.intervals.map((interval) => ({
+    ...interval,
+    ended_at: interval.ended_at ?? switchedAt,
+  }));
   const previous = intervals.at(-1)?.side ?? "left";
   intervals.push({ side: previous === "left" ? "right" : "left", started_at: switchedAt, ended_at: null });
   return {
@@ -101,7 +86,7 @@ export function Timeline({ records, babyId, showDay = false }: { records: Timeli
   return <>
     <div className="timeline">
       {records.map((record) => {
-        const active = isActiveTimedRecord(record);
+        const active = isActiveCareRecord(record);
         return (
           <article className={`timeline-item ${active ? "active" : ""}`} key={record.id}>
             <div className="timeline-time"><strong>{formatTime(record.occurred_at)}</strong>{showDay && <span>{formatDay(record.occurred_at)}</span>}</div>

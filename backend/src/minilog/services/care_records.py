@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from base64 import b64decode, b64encode
 from binascii import Error as Base64Error
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -38,7 +39,6 @@ from minilog.schemas import (
     BreastfeedingCreate,
     CareRecordCreate,
     CareRecordOut,
-    CareRecordPage,
     DiaperChangeCreate,
     MeasurementCreate,
     MedicationAdministrationCreate,
@@ -50,6 +50,24 @@ from minilog.schemas import (
     datetime_to_ms,
     ms_to_datetime,
 )
+
+
+class InvalidPageCursorError(ValueError):
+    pass
+
+
+class BabyNotFoundError(LookupError):
+    pass
+
+
+class InvalidOccurrenceRangeError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class CareRecordPageResult:
+    records: list[CareRecord]
+    next_cursor: str | None
 
 
 def encode_page_cursor(record: CareRecord) -> str:
@@ -67,7 +85,7 @@ def decode_page_cursor(cursor: str) -> tuple[int, str]:
             raise ValueError
         return occurred_at_ms, str(UUID(record_id))
     except (Base64Error, UnicodeDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="invalid_page_cursor") from exc
+        raise InvalidPageCursorError from exc
 
 
 def list_records(
@@ -79,11 +97,11 @@ def list_records(
     date_from: date | None,
     date_to: date | None,
     limit: int,
-) -> CareRecordPage:
+) -> CareRecordPageResult:
     if db.get(Baby, baby_id) is None:
-        raise HTTPException(status_code=404, detail="baby_not_found")
+        raise BabyNotFoundError
     if date_from is not None and date_to is not None and date_from > date_to:
-        raise HTTPException(status_code=422, detail="invalid_occurrence_range")
+        raise InvalidOccurrenceRangeError
     household = db.scalar(select(Household))
     if household is None:
         raise RuntimeError("configured Household is missing")
@@ -120,8 +138,8 @@ def list_records(
     records = list(db.scalars(statement).all())
     has_more = len(records) > limit
     records = records[:limit]
-    return CareRecordPage(
-        items=[to_output(db, record) for record in records],
+    return CareRecordPageResult(
+        records=records,
         next_cursor=encode_page_cursor(records[-1]) if has_more and records else None,
     )
 
@@ -399,20 +417,22 @@ def to_output(db: Session, record: CareRecord) -> CareRecordOut:
     created_at = ms_to_datetime(record.created_at)
     updated_at = ms_to_datetime(record.updated_at)
     assert occurred_at is not None and created_at is not None and updated_at is not None
-    return CareRecordOut(
-        id=record.id,
-        baby_id=record.baby_id,
-        record_type=record.record_type,
-        occurred_at=occurred_at,
-        ended_at=ms_to_datetime(record.ended_at_utc),
-        local_offset_minutes=record.local_offset_minutes,
-        note=record.note,
-        author_label=record.author_label,
-        last_modified_by_label=record.last_modified_by_label,
-        created_at=created_at,
-        updated_at=updated_at,
-        revision=record.revision,
-        details=details_for(db, record),
+    return CareRecordOut.model_validate(
+        {
+            "id": record.id,
+            "baby_id": record.baby_id,
+            "record_type": record.record_type,
+            "occurred_at": occurred_at,
+            "ended_at": ms_to_datetime(record.ended_at_utc),
+            "local_offset_minutes": record.local_offset_minutes,
+            "note": record.note,
+            "author_label": record.author_label,
+            "last_modified_by_label": record.last_modified_by_label,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "revision": record.revision,
+            "details": details_for(db, record),
+        }
     )
 
 

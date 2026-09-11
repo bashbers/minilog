@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 from minilog.models import ClockFormat, MeasurementSystem, RecordType
 
@@ -294,10 +294,9 @@ CareRecordCreate = Annotated[
 ]
 
 
-class CareRecordOut(APIModel):
+class CareRecordOutBase(APIModel):
     id: UUID
     baby_id: UUID
-    record_type: RecordType
     occurred_at: datetime
     ended_at: datetime | None
     local_offset_minutes: int
@@ -307,7 +306,134 @@ class CareRecordOut(APIModel):
     created_at: datetime
     updated_at: datetime
     revision: int
-    details: dict[str, object]
+
+
+class BreastfeedingDetails(APIModel):
+    estimated_amount_ml: int | None
+    intervals: list[BreastfeedingIntervalInput]
+
+
+class BottleFeedingDetails(APIModel):
+    consumed_ml: int
+    offered_ml: int | None
+    contents: Literal["breast_milk", "formula", "mixed", "other"]
+
+
+class SolidFoodFeedingDetails(APIModel):
+    foods: str
+    amount_value: Decimal | None
+    amount_unit: str | None
+    reaction_note: str | None
+
+
+class SleepDetails(APIModel):
+    pass
+
+
+class DiaperChangeDetails(APIModel):
+    is_wet: bool
+    is_dirty: bool
+    stool_colour: str | None
+    stool_consistency: str | None
+
+
+class PumpingDetails(APIModel):
+    expressed_ml: int | None
+
+
+class MeasurementDetails(APIModel):
+    kind: Literal["weight", "height", "temperature"]
+    canonical_value: Decimal
+    canonical_unit: str
+    entered_value: Decimal
+    entered_unit: str
+
+
+class MedicationAdministrationDetails(APIModel):
+    medicine_name: str
+    amount_value: Decimal
+    unit_code: str | None
+    custom_unit: str | None
+    route: str | None
+
+
+class NoteDetails(APIModel):
+    body: str
+
+
+class ImportedCareRecordDetails(APIModel):
+    raw_label: str
+    raw_details: str | None
+    raw_line: str
+
+
+class BreastfeedingOut(CareRecordOutBase):
+    record_type: Literal[RecordType.BREASTFEEDING]
+    details: BreastfeedingDetails
+
+
+class BottleFeedingOut(CareRecordOutBase):
+    record_type: Literal[RecordType.BOTTLE_FEEDING]
+    details: BottleFeedingDetails
+
+
+class SolidFoodFeedingOut(CareRecordOutBase):
+    record_type: Literal[RecordType.SOLID_FOOD_FEEDING]
+    details: SolidFoodFeedingDetails
+
+
+class SleepOut(CareRecordOutBase):
+    record_type: Literal[RecordType.SLEEP]
+    details: SleepDetails
+
+
+class DiaperChangeOut(CareRecordOutBase):
+    record_type: Literal[RecordType.DIAPER_CHANGE]
+    details: DiaperChangeDetails
+
+
+class PumpingOut(CareRecordOutBase):
+    record_type: Literal[RecordType.PUMPING]
+    details: PumpingDetails
+
+
+class MeasurementOut(CareRecordOutBase):
+    record_type: Literal[RecordType.MEASUREMENT]
+    details: MeasurementDetails
+
+
+class MedicationAdministrationOut(CareRecordOutBase):
+    record_type: Literal[RecordType.MEDICATION_ADMINISTRATION]
+    details: MedicationAdministrationDetails
+
+
+class NoteOut(CareRecordOutBase):
+    record_type: Literal[RecordType.NOTE]
+    details: NoteDetails
+
+
+class ImportedCareRecordOut(CareRecordOutBase):
+    record_type: Literal[RecordType.IMPORTED_CARE_RECORD]
+    details: ImportedCareRecordDetails
+
+
+CareRecordVariant = Annotated[
+    BreastfeedingOut
+    | BottleFeedingOut
+    | SolidFoodFeedingOut
+    | SleepOut
+    | DiaperChangeOut
+    | PumpingOut
+    | MeasurementOut
+    | MedicationAdministrationOut
+    | NoteOut
+    | ImportedCareRecordOut,
+    Field(discriminator="record_type"),
+]
+
+
+class CareRecordOut(RootModel[CareRecordVariant]):
+    pass
 
 
 class CareRecordPage(APIModel):

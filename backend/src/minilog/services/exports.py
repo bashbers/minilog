@@ -127,14 +127,18 @@ def build_timeline_csv(db: Session, baby_id: str) -> str:
         .order_by(CareRecord.occurred_at_utc, CareRecord.id)
     )
     for record in records:
-        item = to_output(db, record)
+        item = to_output(db, record).root
         writer.writerow(
             [
                 str(item.id),
                 item.occurred_at.isoformat(),
                 item.ended_at.isoformat() if item.ended_at else "",
                 item.record_type.value,
-                json.dumps(item.details, ensure_ascii=False, sort_keys=True),
+                json.dumps(
+                    item.details.model_dump(mode="json"),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
                 item.note or "",
                 item.author_label,
                 item.revision,

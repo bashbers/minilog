@@ -35,73 +35,26 @@ export type CareRecordCreate =
   | components["schemas"]["MedicationAdministrationCreate"]
   | components["schemas"]["NoteCreate"];
 
-type TimelineRecordOf<
-  Kind extends CareRecord["record_type"],
-  Details,
-> = Omit<CareRecord, "record_type" | "details"> & {
-  record_type: Kind;
-  details: Details;
-  queued?: boolean;
-};
+type WithQueued<Record> = Record extends unknown ? Record & { queued?: boolean } : never;
 
-export type BreastfeedingTimelineRecord = TimelineRecordOf<"breastfeeding", {
-  estimated_amount_ml: number | null;
-  intervals: Array<{
-    side: "left" | "right";
-    started_at: string;
-    ended_at: string | null;
-  }>;
-}>;
-export type BottleFeedingTimelineRecord = TimelineRecordOf<"bottle_feeding", {
-  consumed_ml: number;
-  offered_ml: number | null;
-  contents: "breast_milk" | "formula" | "mixed" | "other";
-}>;
-export type SolidFoodTimelineRecord = TimelineRecordOf<"solid_food_feeding", {
-  foods: string;
-  amount_value: number | string | null;
-  amount_unit: string | null;
-  reaction_note: string | null;
-}>;
-export type SleepTimelineRecord = TimelineRecordOf<"sleep", Record<string, never>>;
-export type DiaperChangeTimelineRecord = TimelineRecordOf<"diaper_change", {
-  is_wet: boolean;
-  is_dirty: boolean;
-  stool_colour: string | null;
-  stool_consistency: string | null;
-}>;
-export type PumpingTimelineRecord = TimelineRecordOf<"pumping", {
-  expressed_ml: number | null;
-}>;
-export type MeasurementTimelineRecord = TimelineRecordOf<"measurement", {
-  kind: "weight" | "height" | "temperature";
-  canonical_value: number | string;
-  canonical_unit: string;
-  entered_value: number | string;
-  entered_unit: string;
-}>;
-export type MedicationTimelineRecord = TimelineRecordOf<"medication_administration", {
-  medicine_name: string;
-  amount_value: number | string;
-  unit_code: string | null;
-  custom_unit: string | null;
-  route: string | null;
-}>;
-export type NoteTimelineRecord = TimelineRecordOf<"note", { body: string }>;
-export type ImportedTimelineRecord = TimelineRecordOf<"imported_care_record", {
-  raw_label: string;
-  raw_details: string | null;
-  raw_line: string;
-}>;
-
-export type NativeTimelineRecord =
-  | BreastfeedingTimelineRecord
-  | BottleFeedingTimelineRecord
-  | SolidFoodTimelineRecord
-  | SleepTimelineRecord
-  | DiaperChangeTimelineRecord
-  | PumpingTimelineRecord
-  | MeasurementTimelineRecord
-  | MedicationTimelineRecord
-  | NoteTimelineRecord;
-export type TimelineRecord = NativeTimelineRecord | ImportedTimelineRecord;
+export type TimelineRecord = WithQueued<CareRecord>;
+export type NativeTimelineRecord = Exclude<
+  TimelineRecord,
+  { record_type: "imported_care_record" }
+>;
+export type BreastfeedingTimelineRecord = Extract<TimelineRecord, { record_type: "breastfeeding" }>;
+export type BottleFeedingTimelineRecord = Extract<TimelineRecord, { record_type: "bottle_feeding" }>;
+export type SolidFoodTimelineRecord = Extract<TimelineRecord, { record_type: "solid_food_feeding" }>;
+export type SleepTimelineRecord = Extract<TimelineRecord, { record_type: "sleep" }>;
+export type DiaperChangeTimelineRecord = Extract<TimelineRecord, { record_type: "diaper_change" }>;
+export type PumpingTimelineRecord = Extract<TimelineRecord, { record_type: "pumping" }>;
+export type MeasurementTimelineRecord = Extract<TimelineRecord, { record_type: "measurement" }>;
+export type MedicationTimelineRecord = Extract<
+  TimelineRecord,
+  { record_type: "medication_administration" }
+>;
+export type NoteTimelineRecord = Extract<TimelineRecord, { record_type: "note" }>;
+export type ImportedTimelineRecord = Extract<
+  TimelineRecord,
+  { record_type: "imported_care_record" }
+>;

@@ -16,6 +16,9 @@ from minilog.schemas import (
     CareRecordUpdate,
 )
 from minilog.services.care_records import (
+    BabyNotFoundError,
+    InvalidOccurrenceRangeError,
+    InvalidPageCursorError,
     active_statuses,
     create_record,
     list_records,
@@ -45,14 +48,25 @@ async def list_care_records(
     date_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> CareRecordPage:
-    return list_records(
-        db,
-        str(baby_id),
-        cursor=cursor,
-        record_types=record_type,
-        date_from=date_from,
-        date_to=date_to,
-        limit=limit,
+    try:
+        page = list_records(
+            db,
+            str(baby_id),
+            cursor=cursor,
+            record_types=record_type,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+        )
+    except BabyNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="baby_not_found") from exc
+    except InvalidPageCursorError as exc:
+        raise HTTPException(status_code=422, detail="invalid_page_cursor") from exc
+    except InvalidOccurrenceRangeError as exc:
+        raise HTTPException(status_code=422, detail="invalid_occurrence_range") from exc
+    return CareRecordPage(
+        items=[to_output(db, record) for record in page.records],
+        next_cursor=page.next_cursor,
     )
 
 

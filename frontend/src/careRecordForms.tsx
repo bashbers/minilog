@@ -13,7 +13,6 @@ import type { AriaAttributes, ComponentType, ReactNode } from "react";
 import type {
   BottleFeedingTimelineRecord,
   BreastfeedingTimelineRecord,
-  CareRecord,
   CareRecordCreate,
   DiaperChangeTimelineRecord,
   MeasurementTimelineRecord,
@@ -42,6 +41,10 @@ interface CommonRecordInput {
 }
 
 export type CareActionKind = CareRecordCreate["record_type"];
+export type ActiveTimedTimelineRecord =
+  | BreastfeedingTimelineRecord
+  | PumpingTimelineRecord
+  | SleepTimelineRecord;
 type ActionIcon = ComponentType<Pick<AriaAttributes, "aria-hidden">>;
 type NativeRecordByKind = {
   breastfeeding: BreastfeedingTimelineRecord;
@@ -53,6 +56,9 @@ type NativeRecordByKind = {
   measurement: MeasurementTimelineRecord;
   medication_administration: MedicationTimelineRecord;
   note: NoteTimelineRecord;
+};
+type NativePayloadByKind = {
+  [Kind in CareActionKind]: Extract<CareRecordCreate, { record_type: Kind }>;
 };
 type BivariantCallback<Arguments extends unknown[], Result> = {
   call(...parameters: Arguments): Result;
@@ -73,7 +79,6 @@ interface CareRecordDefinition<Kind extends CareActionKind> {
   historyGroup?: "feeding";
   timed: boolean;
   showCommonNote: boolean;
-  requiredDetailKeys: Array<keyof NativeRecordByKind[Kind]["details"]>;
   detail: BivariantCallback<[NativeRecordByKind[Kind]], string>;
   summaries: Array<CareSummaryAdapter<NativeRecordByKind[Kind]>>;
   createFields: () => ReactNode;
@@ -84,6 +89,9 @@ interface CareRecordDefinition<Kind extends CareActionKind> {
     NativeRecordByKind[Kind],
     FormData,
   ], CareRecordCreate>;
+  queuedDetails: BivariantCallback<[
+    NativePayloadByKind[Kind],
+  ], NativeRecordByKind[Kind]["details"]>;
 }
 
 type CareRecordRegistry = {
@@ -160,7 +168,6 @@ export const careRecordRegistry = {
     historyGroup: "feeding",
     timed: true,
     showCommonNote: true,
-    requiredDetailKeys: ["estimated_amount_ml", "intervals"],
     detail: (record) => `${durationMinutes(record.occurred_at, record.ended_at)} min`,
     summaries: [{ key: "feeds", label: "Feeds", suffix: "", priority: 30, value: () => 1 }],
     createFields: () => <label>Starting side<select name="side"><option value="left">Left</option><option value="right">Right</option></select></label>,
@@ -198,6 +205,10 @@ export const careRecordRegistry = {
         })),
       };
     },
+    queuedDetails: (payload) => ({
+      estimated_amount_ml: payload.estimated_amount_ml ?? null,
+      intervals: payload.intervals ?? [],
+    }),
   },
   bottle_feeding: {
     kind: "bottle_feeding",
@@ -206,7 +217,6 @@ export const careRecordRegistry = {
     historyGroup: "feeding",
     timed: false,
     showCommonNote: true,
-    requiredDetailKeys: ["consumed_ml", "offered_ml", "contents"],
     detail: (record) => `${record.details.consumed_ml ?? 0} ml · ${String(record.details.contents ?? "").replaceAll("_", " ")}`,
     summaries: [
       { key: "bottle_feeding", label: "Bottle feeding", suffix: "ml", priority: 20, value: (record) => Number(record.details.consumed_ml) || 0 },
@@ -219,6 +229,11 @@ export const careRecordRegistry = {
     editFields: (record) => <><div className="field-row"><label>Consumed (ml)<input name="consumedMl" type="number" min="0" required defaultValue={formValue(record.details.consumed_ml)} /></label><label>Offered (ml)<input name="offeredMl" type="number" min="0" defaultValue={formValue(record.details.offered_ml)} /></label></div><label>Contents<select name="contents" defaultValue={record.details.contents}><option value="breast_milk">Breast milk</option><option value="formula">Formula</option><option value="mixed">Mixed</option><option value="other">Other</option></select></label></>,
     createPayload: bottlePayload,
     editPayload: (common, _record, values) => bottlePayload(common, values),
+    queuedDetails: (payload) => ({
+      consumed_ml: payload.consumed_ml,
+      offered_ml: payload.offered_ml ?? null,
+      contents: payload.contents,
+    }),
   },
   solid_food_feeding: {
     kind: "solid_food_feeding",
@@ -227,7 +242,6 @@ export const careRecordRegistry = {
     historyGroup: "feeding",
     timed: false,
     showCommonNote: false,
-    requiredDetailKeys: ["foods", "amount_value", "amount_unit", "reaction_note"],
     detail: (record) => String(record.details.foods ?? ""),
     summaries: [{ key: "feeds", label: "Feeds", suffix: "", priority: 30, value: () => 1 }],
     createFields: () => <>
@@ -238,6 +252,12 @@ export const careRecordRegistry = {
     editFields: (record) => <><label>Foods<input name="foods" required defaultValue={record.details.foods} /></label><div className="field-row"><label>Amount<input name="amount" type="number" min="0" step="any" defaultValue={formValue(record.details.amount_value)} /></label><label>Unit<input name="amountUnit" defaultValue={formValue(record.details.amount_unit)} /></label></div><label>Observed reaction<textarea name="reactionNote" rows={2} defaultValue={formValue(record.details.reaction_note)} /></label></>,
     createPayload: solidFoodPayload,
     editPayload: (common, _record, values) => solidFoodPayload(common, values),
+    queuedDetails: (payload) => ({
+      foods: payload.foods,
+      amount_value: payload.amount_value == null ? null : String(payload.amount_value),
+      amount_unit: payload.amount_unit ?? null,
+      reaction_note: payload.reaction_note ?? null,
+    }),
   },
   sleep: {
     kind: "sleep",
@@ -245,13 +265,13 @@ export const careRecordRegistry = {
     icon: Bed,
     timed: true,
     showCommonNote: true,
-    requiredDetailKeys: [],
     detail: (record) => `${durationMinutes(record.occurred_at, record.ended_at)} min${record.ended_at ? "" : " · active"}`,
     summaries: [{ key: "sleep", label: "Sleep", suffix: "min", priority: 10, value: (record) => durationMinutes(record.occurred_at, record.ended_at) }],
     createFields: noFields,
     editFields: noFields,
     createPayload: sleepPayload,
     editPayload: sleepPayload,
+    queuedDetails: () => ({}),
   },
   diaper_change: {
     kind: "diaper_change",
@@ -259,7 +279,6 @@ export const careRecordRegistry = {
     icon: BabyDiaperIcon,
     timed: false,
     showCommonNote: true,
-    requiredDetailKeys: ["is_wet", "is_dirty", "stool_colour", "stool_consistency"],
     detail: (record) => [record.details.is_wet && "wet", record.details.is_dirty && "dirty"].filter(Boolean).join(" + "),
     summaries: [{ key: "diaper_changes", label: "Diaper changes", suffix: "", priority: 40, value: () => 1 }],
     createFields: () => <>
@@ -269,6 +288,12 @@ export const careRecordRegistry = {
     editFields: (record) => <><fieldset><legend>Diaper change</legend><div className="choice-row"><label className="choice"><input type="checkbox" name="wet" defaultChecked={record.details.is_wet} /> Wet</label><label className="choice"><input type="checkbox" name="dirty" defaultChecked={record.details.is_dirty} /> Dirty</label></div></fieldset><div className="field-row"><label>Colour<input name="stoolColour" defaultValue={formValue(record.details.stool_colour)} /></label><label>Consistency<input name="stoolConsistency" defaultValue={formValue(record.details.stool_consistency)} /></label></div></>,
     createPayload: diaperChangePayload,
     editPayload: (common, _record, values) => diaperChangePayload(common, values),
+    queuedDetails: (payload) => ({
+      is_wet: payload.is_wet,
+      is_dirty: payload.is_dirty,
+      stool_colour: payload.stool_colour ?? null,
+      stool_consistency: payload.stool_consistency ?? null,
+    }),
   },
   pumping: {
     kind: "pumping",
@@ -276,13 +301,13 @@ export const careRecordRegistry = {
     icon: Scale,
     timed: true,
     showCommonNote: true,
-    requiredDetailKeys: ["expressed_ml"],
     detail: (record) => `${durationMinutes(record.occurred_at, record.ended_at)} min${record.details.expressed_ml ? ` · ${record.details.expressed_ml} ml` : ""}`,
     summaries: [{ key: "pumping", label: "Pumping", suffix: "ml", priority: 50, value: (record) => Number(record.details.expressed_ml) || 0 }],
     createFields: noFields,
     editFields: (record) => <label>Expressed volume (ml) <span className="muted">optional</span><input name="expressedMl" type="number" min="0" inputMode="numeric" defaultValue={formValue(record.details.expressed_ml)} /></label>,
     createPayload: (common) => ({ ...common, record_type: "pumping", expressed_ml: null }),
     editPayload: (common, _record, values) => ({ ...common, record_type: "pumping", expressed_ml: optionalNumber(values, "expressedMl") }),
+    queuedDetails: (payload) => ({ expressed_ml: payload.expressed_ml ?? null }),
   },
   measurement: {
     kind: "measurement",
@@ -290,7 +315,6 @@ export const careRecordRegistry = {
     icon: Ruler,
     timed: false,
     showCommonNote: true,
-    requiredDetailKeys: ["kind", "canonical_value", "canonical_unit", "entered_value", "entered_unit"],
     detail: (record) => `${record.details.entered_value ?? ""} ${record.details.entered_unit ?? ""} · ${record.details.kind ?? ""}`,
     summaries: [{ key: "measurements", label: "Measurements", suffix: "", priority: 60, value: () => 1 }],
     createFields: () => <>
@@ -316,6 +340,13 @@ export const careRecordRegistry = {
       entered_value: Number(values.get("measurementValue")),
       entered_unit: String(values.get("measurementUnit")),
     }),
+    queuedDetails: (payload) => ({
+      kind: payload.kind,
+      canonical_value: String(payload.entered_value),
+      canonical_unit: payload.entered_unit,
+      entered_value: String(payload.entered_value),
+      entered_unit: payload.entered_unit,
+    }),
   },
   medication_administration: {
     kind: "medication_administration",
@@ -323,7 +354,6 @@ export const careRecordRegistry = {
     icon: Pill,
     timed: false,
     showCommonNote: true,
-    requiredDetailKeys: ["medicine_name", "amount_value", "unit_code", "custom_unit", "route"],
     detail: (record) => `${record.details.medicine_name ?? ""} · ${record.details.amount_value ?? ""} ${record.details.unit_code ?? record.details.custom_unit ?? ""}`,
     summaries: [],
     createFields: () => <>
@@ -354,6 +384,13 @@ export const careRecordRegistry = {
         route: String(values.get("route") ?? "") || null,
       };
     },
+    queuedDetails: (payload) => ({
+      medicine_name: payload.medicine_name,
+      amount_value: String(payload.amount_value),
+      unit_code: payload.unit_code ?? null,
+      custom_unit: payload.custom_unit ?? null,
+      route: payload.route ?? null,
+    }),
   },
   note: {
     kind: "note",
@@ -361,20 +398,17 @@ export const careRecordRegistry = {
     icon: BookHeart,
     timed: false,
     showCommonNote: false,
-    requiredDetailKeys: ["body"],
     detail: (record) => String(record.details.body ?? ""),
     summaries: [],
     createFields: () => <label>Note<textarea name="body" rows={4} required autoFocus /></label>,
     editFields: (record) => <label>Note<textarea name="body" rows={4} required defaultValue={record.details.body} /></label>,
     createPayload: notePayload,
     editPayload: (common, _record, values) => notePayload(common, values),
+    queuedDetails: (payload) => ({ body: payload.body }),
   },
 } satisfies CareRecordRegistry;
 
-type UniformCareRecordDefinition = Omit<
-  CareRecordDefinition<CareActionKind>,
-  "requiredDetailKeys"
-> & { requiredDetailKeys: string[] };
+type UniformCareRecordDefinition = CareRecordDefinition<CareActionKind>;
 
 const uniformRegistry: Record<CareActionKind, UniformCareRecordDefinition> =
   careRecordRegistry;
@@ -415,6 +449,14 @@ export function careRecordTypesForGroup(group: "feeding"): CareActionKind[] {
   return careActions
     .filter((action) => uniformRegistry[action.kind].historyGroup === group)
     .map((action) => action.kind);
+}
+
+export function isActiveCareRecord(
+  record: TimelineRecord,
+): record is ActiveTimedTimelineRecord {
+  return record.record_type !== "imported_care_record"
+    && uniformRegistry[record.record_type].timed
+    && record.ended_at === null;
 }
 
 export function careRecordLabel(record: TimelineRecord): string {
@@ -472,20 +514,30 @@ export function careRecordSummaryValues(record: TimelineRecord): CareSummaryValu
   return nativeSummaryValues(record);
 }
 
-export function isTimelineRecord(record: CareRecord): record is TimelineRecord {
-  const requiredKeys = record.record_type === "imported_care_record"
-    ? ["raw_label", "raw_details", "raw_line"]
-    : uniformRegistry[record.record_type].requiredDetailKeys;
-  return requiredKeys.every((key) => key in record.details);
-}
+export function queuedTimelineRecord(
+  payload: CareRecordCreate,
+  mutationId: string,
+): TimelineRecord {
+  const now = new Date().toISOString();
+  const record = {
+    id: payload.id ?? mutationId,
+    baby_id: payload.baby_id,
+    record_type: payload.record_type,
+    occurred_at: payload.occurred_at,
+    ended_at: payload.ended_at ?? null,
+    local_offset_minutes: payload.local_offset_minutes,
+    note: payload.note ?? null,
+    author_label: "You",
+    last_modified_by_label: "You",
+    created_at: now,
+    updated_at: now,
+    revision: 1,
+    details: uniformRegistry[payload.record_type].queuedDetails(payload),
+    queued: true,
+  };
 
-export function timelineRecords(records: CareRecord[]): TimelineRecord[] {
-  return records.map((record) => {
-    if (!isTimelineRecord(record)) {
-      throw new Error(`Invalid ${record.record_type} response details`);
-    }
-    return record;
-  });
+  // The registry preserves the discriminator/details pairing of the generated API union.
+  return record as TimelineRecord;
 }
 
 export function createRecordPayload(
