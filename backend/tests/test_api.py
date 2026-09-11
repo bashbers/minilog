@@ -1,14 +1,15 @@
 import asyncio
 import io
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import uuid4
 
 import httpx2 as httpx
 from PIL import Image
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
-from minilog.database import SessionLocal
+from minilog.database import SessionLocal, get_db
 from minilog.main import app
 from minilog.models import CareRecord, ProcessedMutation, SyncChange, SyncState, now_ms
 
@@ -77,6 +78,67 @@ def test_setup_session_and_owner_only_baby_creation() -> None:
         ]
 
     asyncio.run(with_client(scenario))
+
+
+def test_compatibility_endpoint_refuses_an_unexpected_schema() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        compatible = await client.get("/api/v1/health/compatibility")
+        assert compatible.status_code == 200
+        assert compatible.json() == {
+            "status": "ready",
+            "api_contract_version": 1,
+            "schema_revision": "47ccc6557a5e",
+        }
+
+        with SessionLocal() as db:
+            db.execute(text("UPDATE alembic_version SET version_num = 'unexpected'"))
+            db.commit()
+        incompatible = await client.get("/api/v1/health/compatibility")
+        assert incompatible.status_code == 503
+        assert incompatible.json()["detail"] == "maintenance"
+
+    asyncio.run(with_client(scenario))
+
+
+def test_request_logs_use_route_templates_and_sanitize_request_ids(caplog) -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        response = await client.get(
+            f"/api/v1/babies/{baby_id}/profile-picture",
+            headers={"X-Request-ID": "private value"},
+        )
+        assert response.status_code == 404
+
+        messages = "\n".join(record.getMessage() for record in caplog.records)
+        assert '"route":"/api/v1/babies/{baby_id}/profile-picture"' in messages
+        assert baby_id not in messages
+        assert "private value" not in messages
+
+    caplog.set_level(logging.INFO, logger="minilog")
+    asyncio.run(with_client(scenario))
+
+
+def test_unhandled_failures_return_and_log_only_sanitized_details(caplog) -> None:
+    private_detail = "private Baby name and medicine"
+
+    async def failing_database():
+        raise RuntimeError(private_detail)
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        response = await client.get("/api/v1/health/compatibility")
+        assert response.status_code == 500
+        assert response.json() == {"detail": "internal_server_error"}
+        messages = "\n".join(record.getMessage() for record in caplog.records)
+        assert '"exception":"RuntimeError"' in messages
+        assert private_detail not in messages
+
+    caplog.set_level(logging.ERROR, logger="minilog")
+    app.dependency_overrides[get_db] = failing_database
+    try:
+        asyncio.run(with_client(scenario))
+    finally:
+        app.dependency_overrides.pop(get_db, None)
 
 
 def test_every_native_record_type_round_trips() -> None:

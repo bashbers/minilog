@@ -1,4 +1,5 @@
 import asyncio
+import csv
 import io
 import json
 import sqlite3
@@ -51,10 +52,28 @@ def test_checked_export_csv_and_restore_round_trip(tmp_path) -> None:
             },
         )
         assert note.status_code == 201
+        solid_food = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "baby_id": baby_id,
+                "record_type": "solid_food_feeding",
+                "occurred_at": "2026-09-09T13:00:00+02:00",
+                "local_offset_minutes": 120,
+                "foods": "Banana",
+                "note": "=HYPERLINK(\"https://example.invalid\")",
+            },
+        )
+        assert solid_food.status_code == 201
 
         csv_response = await client.get(f"/api/v1/exports/timeline.csv?baby_id={baby_id}")
         assert csv_response.status_code == 200
         assert "Original export value" in csv_response.text
+        rows = list(csv.DictReader(io.StringIO(csv_response.text.lstrip("\ufeff"))))
+        formula_note = next(
+            row["note"] for row in rows if row["record_type"] == "solid_food_feeding"
+        )
+        assert formula_note.startswith("'=HYPERLINK")
 
         archive = await client.get("/api/v1/exports/minilog")
         assert archive.status_code == 200

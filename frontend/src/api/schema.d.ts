@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/compatibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compatibility */
+        get: operations["compatibility_api_v1_health_compatibility_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/setup": {
         parameters: {
             query?: never;
@@ -830,6 +847,19 @@ export interface components {
          * @enum {string}
          */
         ClockFormat: "12h" | "24h";
+        /** CompatibilityStatus */
+        CompatibilityStatus: {
+            /**
+             * Status
+             * @default ready
+             * @constant
+             */
+            status: "ready";
+            /** Api Contract Version */
+            api_contract_version: number;
+            /** Schema Revision */
+            schema_revision: string;
+        };
         /** DeviceSessionOut */
         DeviceSessionOut: {
             /**
@@ -1844,6 +1874,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    compatibility_api_v1_health_compatibility_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatibilityStatus"];
                 };
             };
         };

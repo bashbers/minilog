@@ -21,6 +21,8 @@ docker compose up --build -d
 
 Open `http://localhost:8080`, enter the setup token, and create the first Owner. The SQLite database and application-managed recovery artifacts live only in the `minilog-data` volume.
 
+After the first Owner exists, clear `MINILOG_SETUP_TOKEN` in `.env` and recreate the API container. Setup stays disabled by the database state; the token is no longer needed or logged.
+
 For access beyond the local machine, place Minilog behind an HTTPS reverse proxy or a private VPN and set:
 
 ```dotenv

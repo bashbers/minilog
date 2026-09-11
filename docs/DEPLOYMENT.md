@@ -40,6 +40,8 @@ An application session-signing secret is generated with cryptographic randomness
 4. Minilog invalidates setup and the operator removes the token from active configuration.
 5. The Owner creates the Household settings and first Baby.
 
+Set `MINILOG_SETUP_TOKEN=` after step 3 and recreate the API container. Compose accepts the empty value after setup; an empty token cannot claim a fresh deployment.
+
 The setup guide warns operators not to expose an unclaimed deployment publicly.
 
 ## Remote access
@@ -97,7 +99,7 @@ The archive is fully checksum-validated, must match the running database revisio
 
 ## Upgrades
 
-Images use explicit versions; automatic unattended application updates are not enabled. An upgrade:
+Images use explicit versions; automatic unattended application updates are not enabled. On every API start, `minilog-start` serves a temporary maintenance response, validates the current schema, and skips Alembic when the expected revision is already installed. An upgrade:
 
 1. Pulls matching `web` and `api` versions.
 2. Enters API maintenance mode.
@@ -106,7 +108,7 @@ Images use explicit versions; automatic unattended application updates are not e
 5. Runs database integrity and application readiness checks.
 6. Starts the web container only against a compatible API.
 
-Migration failure restores the verified snapshot and leaves a sanitized diagnostic. The frontend checks API compatibility and shows maintenance or version-mismatch state rather than running against an incompatible contract.
+Migration failure restores the verified snapshot before the container exits and leaves only a sanitized exception class in the lifecycle diagnostic. A failed first migration removes its incomplete database. The frontend polls the compatibility endpoint and shows maintenance or version-mismatch state rather than running against an incompatible contract.
 
 ## Recovery and lockout
 

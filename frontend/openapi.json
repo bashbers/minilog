@@ -55,6 +55,27 @@
         }
       }
     },
+    "/api/v1/health/compatibility": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Compatibility",
+        "operationId": "compatibility_api_v1_health_compatibility_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibilityStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/setup": {
       "get": {
         "tags": [
@@ -3935,6 +3956,30 @@
           "24h"
         ],
         "title": "ClockFormat"
+      },
+      "CompatibilityStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ready",
+            "title": "Status",
+            "default": "ready"
+          },
+          "api_contract_version": {
+            "type": "integer",
+            "title": "Api Contract Version"
+          },
+          "schema_revision": {
+            "type": "string",
+            "title": "Schema Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_contract_version",
+          "schema_revision"
+        ],
+        "title": "CompatibilityStatus"
       },
       "DeviceSessionOut": {
         "properties": {

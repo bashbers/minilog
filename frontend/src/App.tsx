@@ -17,7 +17,28 @@ import { useRecords } from "./hooks/useRecords";
 import { dateKeyInTimeZone, shiftDateKey } from "./lib/time";
 import { clearLocalData } from "./offline/store";
 
+const EXPECTED_API_CONTRACT_VERSION = 1;
+
 function AuthGate() {
+  const compatibility = useQuery({
+    queryKey: ["compatibility"],
+    queryFn: api.compatibility,
+    retry: false,
+    refetchInterval: 5_000,
+  });
+
+  if (compatibility.isLoading) return <LoadingScreen />;
+  if (compatibility.error instanceof ApiError && compatibility.error.status === 503) {
+    return <MaintenanceScreen />;
+  }
+  if (compatibility.isError || !compatibility.data) return <ErrorScreen />;
+  if (compatibility.data.api_contract_version !== EXPECTED_API_CONTRACT_VERSION) {
+    return <VersionMismatchScreen />;
+  }
+  return <SessionGate />;
+}
+
+function SessionGate() {
   const setup = useQuery({ queryKey: ["setup"], queryFn: api.setupStatus, retry: false });
   const me = useQuery({ queryKey: ["me"], queryFn: api.me, retry: false });
 
@@ -34,6 +55,14 @@ function LoadingScreen() {
 
 function ErrorScreen() {
   return <main className="center-screen"><h1>Minilog is unavailable</h1><p className="muted">Check that your private server is running, then reload.</p></main>;
+}
+
+function MaintenanceScreen() {
+  return <main className="center-screen"><div className="brand-mark pulse"><BabyIcon /></div><h1>Minilog is upgrading</h1><p className="muted">Your private data is being checked. This screen will update automatically.</p></main>;
+}
+
+function VersionMismatchScreen() {
+  return <main className="center-screen"><h1>Minilog versions do not match</h1><p className="muted">Update the web and API containers to the same release, then reload.</p></main>;
 }
 
 function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {

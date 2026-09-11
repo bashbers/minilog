@@ -2,19 +2,29 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
+import logging
 import os
 import sqlite3
+import threading
+from collections.abc import Callable
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
+from alembic.config import Config
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
+from alembic import command
 from minilog.config import get_settings
+from minilog.constants import API_CONTRACT_VERSION, SCHEMA_REVISION
 from minilog.database import SessionLocal
 from minilog.models import AuthSession, Caregiver, CaregiverRole, now_ms
 from minilog.security import hash_password
+
+logger = logging.getLogger("minilog.startup")
 
 
 def configured_database_path() -> Path:
@@ -46,6 +56,15 @@ def verify_database(path: Path) -> None:
             raise RuntimeError("Snapshot is not a migrated Minilog database.")
 
 
+def database_revision(path: Path) -> str:
+    verify_database(path)
+    with read_only_connection(path) as connection:
+        revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+    if revision is None or not revision[0]:
+        raise RuntimeError("Database schema revision is missing.")
+    return str(revision[0])
+
+
 def backup_database(database_path: Path, output_path: Path | None = None) -> Path:
     database_path = database_path.resolve()
     if not database_path.is_file():
@@ -71,11 +90,10 @@ def backup_database(database_path: Path, output_path: Path | None = None) -> Pat
     return output_path
 
 
-def restore_database(snapshot_path: Path, database_path: Path) -> Path:
+def install_verified_snapshot(snapshot_path: Path, database_path: Path) -> None:
     snapshot_path = snapshot_path.resolve()
     database_path = database_path.resolve()
     verify_database(snapshot_path)
-    recovery = backup_database(database_path)
     temporary = database_path.with_name(f".{database_path.name}.restore")
     if temporary.exists():
         raise RuntimeError(f"Temporary restore path already exists: {temporary}")
@@ -93,7 +111,128 @@ def restore_database(snapshot_path: Path, database_path: Path) -> Path:
         Path(f"{temporary}-wal").unlink(missing_ok=True)
         Path(f"{temporary}-shm").unlink(missing_ok=True)
     verify_database(database_path)
+
+
+def restore_database(snapshot_path: Path, database_path: Path) -> Path:
+    snapshot_path = snapshot_path.resolve()
+    database_path = database_path.resolve()
+    verify_database(snapshot_path)
+    recovery = backup_database(database_path)
+    install_verified_snapshot(snapshot_path, database_path)
     return recovery
+
+
+class MigrationUpgradeError(RuntimeError):
+    pass
+
+
+def run_alembic_upgrade(config_path: Path) -> None:
+    command.upgrade(Config(config_path.as_posix()), "head")
+
+
+def upgrade_database(
+    database_path: Path,
+    config_path: Path,
+    migration_runner: Callable[[Path], None] | None = None,
+) -> Path | None:
+    database_path = database_path.resolve()
+    config_path = config_path.resolve()
+    existing = database_path.is_file() and database_path.stat().st_size > 0
+    if existing and database_revision(database_path) == SCHEMA_REVISION:
+        return None
+
+    snapshot: Path | None = None
+    if existing:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+        snapshot = backup_database(
+            database_path,
+            database_path.parent / "upgrades" / f"minilog-pre-upgrade-{timestamp}.sqlite3",
+        )
+    else:
+        database_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    runner = migration_runner or run_alembic_upgrade
+    try:
+        runner(config_path)
+        revision = database_revision(database_path)
+        if revision != SCHEMA_REVISION:
+            raise RuntimeError("Migration did not reach the expected schema revision.")
+    except Exception as exc:
+        if snapshot is not None:
+            install_verified_snapshot(snapshot, database_path)
+        else:
+            for suffix in ("", "-wal", "-shm"):
+                Path(f"{database_path}{suffix}").unlink(missing_ok=True)
+        raise MigrationUpgradeError(
+            "Database migration failed; the previous database was restored."
+            if snapshot is not None
+            else "Initial database migration failed; the incomplete database was removed."
+        ) from exc
+    return snapshot
+
+
+class MaintenanceHandler(BaseHTTPRequestHandler):
+    def send_json(self, status: int, payload: dict[str, object]) -> None:
+        body = json.dumps(payload, separators=(",", ":")).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/api/v1/health/live":
+            self.send_json(200, {"status": "maintenance"})
+            return
+        self.send_json(
+            503,
+            {"detail": "maintenance", "api_contract_version": API_CONTRACT_VERSION},
+        )
+
+    def log_message(self, _format: str, *args: object) -> None:
+        return
+
+
+def start_main() -> None:
+    parser = argparse.ArgumentParser(description="Safely migrate and start the Minilog API.")
+    parser.add_argument("--alembic-config", type=Path, default=Path("alembic.ini"))
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    server = ThreadingHTTPServer(("0.0.0.0", 8000), MaintenanceHandler)
+    thread = threading.Thread(target=server.serve_forever, name="maintenance-http", daemon=True)
+    thread.start()
+    try:
+        logger.info("database lifecycle status=checking")
+        snapshot = upgrade_database(configured_database_path(), args.alembic_config)
+        if snapshot is not None:
+            logger.info("database lifecycle status=upgraded snapshot=%s", snapshot)
+        else:
+            logger.info("database lifecycle status=ready")
+    except Exception as exc:
+        logger.error("database lifecycle status=failed exception=%s", type(exc).__name__)
+        raise SystemExit(1) from None
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    os.execvp(
+        "uvicorn",
+        [
+            "uvicorn",
+            "minilog.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
+            "--workers",
+            "1",
+            "--no-access-log",
+        ],
+    )
 
 
 def backup_main() -> None:

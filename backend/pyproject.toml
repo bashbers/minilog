@@ -24,6 +24,7 @@ minilog-backup = "minilog.cli:backup_main"
 minilog-restore = "minilog.cli:restore_main"
 minilog-restore-export = "minilog.cli:restore_export_main"
 minilog-reset-owner = "minilog.cli:reset_owner_main"
+minilog-start = "minilog.cli:start_main"
 
 [project.optional-dependencies]
 dev = [

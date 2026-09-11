@@ -46,6 +46,7 @@ BINARY_COLUMNS = {
     "baby_profile_pictures": {"webp_bytes"},
     "import_batches": {"source_contents"},
 }
+SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def json_value(value):
@@ -139,12 +140,18 @@ def build_timeline_csv(db: Session, baby_id: str) -> str:
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
-                item.note or "",
-                item.author_label,
+                spreadsheet_safe(item.note or ""),
+                spreadsheet_safe(item.author_label),
                 item.revision,
             ]
         )
     return output.getvalue()
+
+
+def spreadsheet_safe(value: str) -> str:
+    if value.startswith(SPREADSHEET_FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
 
 
 def checked_archive(path: Path) -> tuple[dict, dict[str, bytes]]:

@@ -3,6 +3,7 @@ import type { components } from "./schema";
 export type Baby = components["schemas"]["BabyOut"];
 export type BabyCreate = components["schemas"]["BabyCreate"];
 export type BabyActiveStatus = components["schemas"]["BabyActiveStatus"];
+export type CompatibilityStatus = components["schemas"]["CompatibilityStatus"];
 export type Caregiver = components["schemas"]["CaregiverOut"];
 export type CareRecord = components["schemas"]["CareRecordOut"];
 export type CareRecordPage = components["schemas"]["CareRecordPage"];

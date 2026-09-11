@@ -6,6 +6,7 @@ import type {
   CareRecordCreate,
   CareRecordPage,
   Caregiver,
+  CompatibilityStatus,
   DeviceSession,
   ImportBatch,
   ImportedDailyNote,
@@ -121,6 +122,7 @@ async function allCareRecords(
 }
 
 export const api = {
+  compatibility: () => request<CompatibilityStatus>("/health/compatibility"),
   setupStatus: () => request<SetupStatus>("/setup"),
   setup: (payload: SetupRequest) =>
     request<Session>("/setup", { method: "POST", body: JSON.stringify(payload) }),

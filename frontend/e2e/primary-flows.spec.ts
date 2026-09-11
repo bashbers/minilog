@@ -88,6 +88,9 @@ async function mockApi(page: Page) {
       body: JSON.stringify(body),
     });
 
+    if (path === "/api/v1/health/compatibility") {
+      return json({ status: "ready", api_contract_version: 1, schema_revision: "47ccc6557a5e" });
+    }
     if (path === "/api/v1/setup") return json({ setup_required: false });
     if (path === "/api/v1/sessions/current") {
       return json({ id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner" });

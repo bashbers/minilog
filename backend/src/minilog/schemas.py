@@ -481,6 +481,12 @@ class SyncCursorExpiredResponse(APIModel):
     detail: SyncCursorExpiredDetail
 
 
+class CompatibilityStatus(APIModel):
+    status: Literal["ready"] = "ready"
+    api_contract_version: int
+    schema_revision: str
+
+
 class PiyoLogPreview(APIModel):
     source_hash: str
     duplicate_import_id: UUID | None = None

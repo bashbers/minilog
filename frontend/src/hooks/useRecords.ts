@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import { invalidateCareRecordQueries } from "../api/cache";
 import type { CareRecord, CareRecordCreate, TimelineRecord } from "../api/types";
 import { queuedTimelineRecord } from "../careRecordForms";
+import { newUuid } from "../lib/uuid";
 import {
   cachedRecords,
   cacheRecords,
@@ -42,8 +43,8 @@ export function useCreateRecord(babyId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CareRecordCreate) => {
-      const mutationId = crypto.randomUUID();
-      const identified = { ...payload, id: payload.id ?? crypto.randomUUID() } as CareRecordCreate;
+      const mutationId = newUuid();
+      const identified = { ...payload, id: payload.id ?? newUuid() } as CareRecordCreate;
       await queueCreation(identified, mutationId);
       try {
         const record = await api.createRecord(identified, mutationId);
