@@ -1,6 +1,6 @@
 import { openDB, type DBSchema } from "idb";
 
-import { api, ApiError } from "../api/client";
+import { api, ApiError, isTemporaryApiFailure } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
 
 export interface PendingCreation {
@@ -64,7 +64,7 @@ export async function flushPending(): Promise<FlushPendingResult> {
       await db.delete("pending", item.mutationId);
       completed += 1;
     } catch (error) {
-      if (error instanceof TypeError) break;
+      if (isTemporaryApiFailure(error)) break;
       await db.put("pending", {
         ...item,
         status: "failed",

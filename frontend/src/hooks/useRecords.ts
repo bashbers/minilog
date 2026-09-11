@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, ApiError } from "../api/client";
+import { api, ApiError, isTemporaryApiFailure } from "../api/client";
 import { invalidateCareRecordQueries } from "../api/cache";
 import type { CareRecord, CareRecordCreate, TimelineRecord } from "../api/types";
 import { queuedTimelineRecord } from "../careRecordForms";
@@ -51,7 +51,7 @@ export function useCreateRecord(babyId: string) {
         await discardPendingCreation(mutationId);
         return record;
       } catch (error) {
-        if (!(error instanceof TypeError)) {
+        if (!isTemporaryApiFailure(error)) {
           await discardPendingCreation(mutationId);
           throw error;
         }

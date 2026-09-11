@@ -5,9 +5,12 @@ import getpass
 import json
 import logging
 import os
+import signal
 import sqlite3
+import tempfile
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -59,10 +62,30 @@ def verify_database(path: Path) -> None:
 def database_revision(path: Path) -> str:
     verify_database(path)
     with read_only_connection(path) as connection:
-        revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-    if revision is None or not revision[0]:
-        raise RuntimeError("Database schema revision is missing.")
-    return str(revision[0])
+        revisions = connection.execute("SELECT version_num FROM alembic_version").fetchall()
+    if len(revisions) != 1 or not revisions[0][0]:
+        raise RuntimeError("Database must have exactly one schema revision.")
+    return str(revisions[0][0])
+
+
+def verify_database_writable(path: Path) -> None:
+    path = path.resolve()
+    if not path.is_file():
+        raise RuntimeError("Minilog storage is not writable.")
+    temporary_path: Path | None = None
+    try:
+        with sqlite3.connect(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("UPDATE alembic_version SET version_num = version_num")
+            connection.rollback()
+        descriptor, raw_path = tempfile.mkstemp(prefix=".minilog-write-probe-", dir=path.parent)
+        os.close(descriptor)
+        temporary_path = Path(raw_path)
+    except (OSError, sqlite3.Error) as exc:
+        raise RuntimeError("Minilog storage is not writable.") from exc
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def backup_database(database_path: Path, output_path: Path | None = None) -> Path:
@@ -127,7 +150,61 @@ class MigrationUpgradeError(RuntimeError):
 
 
 def run_alembic_upgrade(config_path: Path) -> None:
-    command.upgrade(Config(config_path.as_posix()), "head")
+    try:
+        command.upgrade(Config(config_path.as_posix()), "head")
+    finally:
+        logger.disabled = False
+        logger.setLevel(logging.INFO)
+
+
+class MigrationInterruptedError(RuntimeError):
+    pass
+
+
+MIGRATION_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+@contextmanager
+def migration_signal_guard() -> Iterator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    previous = {
+        signal_number: signal.getsignal(signal_number)
+        for signal_number in MIGRATION_SIGNALS
+    }
+
+    def interrupt(signum: int, _frame: object) -> None:
+        for signal_number in MIGRATION_SIGNALS:
+            signal.signal(signal_number, signal.SIG_IGN)
+        raise MigrationInterruptedError(f"Migration interrupted by signal {signum}.")
+
+    for signal_number in MIGRATION_SIGNALS:
+        signal.signal(signal_number, interrupt)
+    try:
+        yield
+    finally:
+        for signal_number, handler in previous.items():
+            signal.signal(signal_number, handler)
+
+
+@contextmanager
+def ignore_migration_signals() -> Iterator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = {
+        signal_number: signal.getsignal(signal_number)
+        for signal_number in MIGRATION_SIGNALS
+    }
+    for signal_number in MIGRATION_SIGNALS:
+        signal.signal(signal_number, signal.SIG_IGN)
+    try:
+        yield
+    finally:
+        for signal_number, handler in previous.items():
+            signal.signal(signal_number, handler)
 
 
 def upgrade_database(
@@ -139,6 +216,7 @@ def upgrade_database(
     config_path = config_path.resolve()
     existing = database_path.is_file() and database_path.stat().st_size > 0
     if existing and database_revision(database_path) == SCHEMA_REVISION:
+        verify_database_writable(database_path)
         return None
 
     snapshot: Path | None = None
@@ -152,22 +230,25 @@ def upgrade_database(
         database_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     runner = migration_runner or run_alembic_upgrade
-    try:
-        runner(config_path)
-        revision = database_revision(database_path)
-        if revision != SCHEMA_REVISION:
-            raise RuntimeError("Migration did not reach the expected schema revision.")
-    except Exception as exc:
-        if snapshot is not None:
-            install_verified_snapshot(snapshot, database_path)
-        else:
-            for suffix in ("", "-wal", "-shm"):
-                Path(f"{database_path}{suffix}").unlink(missing_ok=True)
-        raise MigrationUpgradeError(
-            "Database migration failed; the previous database was restored."
-            if snapshot is not None
-            else "Initial database migration failed; the incomplete database was removed."
-        ) from exc
+    with migration_signal_guard():
+        try:
+            runner(config_path)
+            revision = database_revision(database_path)
+            if revision != SCHEMA_REVISION:
+                raise RuntimeError("Migration did not reach the expected schema revision.")
+            verify_database_writable(database_path)
+        except Exception as exc:
+            with ignore_migration_signals():
+                if snapshot is not None:
+                    install_verified_snapshot(snapshot, database_path)
+                else:
+                    for suffix in ("", "-wal", "-shm"):
+                        Path(f"{database_path}{suffix}").unlink(missing_ok=True)
+            raise MigrationUpgradeError(
+                "Database migration failed; the previous database was restored."
+                if snapshot is not None
+                else "Initial database migration failed; the incomplete database was removed."
+            ) from exc
     return snapshot
 
 
@@ -186,10 +267,28 @@ class MaintenanceHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/health/live":
             self.send_json(200, {"status": "maintenance"})
             return
+        self.send_maintenance()
+
+    def send_maintenance(self) -> None:
         self.send_json(
             503,
             {"detail": "maintenance", "api_contract_version": API_CONTRACT_VERSION},
         )
+
+    def do_POST(self) -> None:
+        self.send_maintenance()
+
+    def do_PUT(self) -> None:
+        self.send_maintenance()
+
+    def do_PATCH(self) -> None:
+        self.send_maintenance()
+
+    def do_DELETE(self) -> None:
+        self.send_maintenance()
+
+    def do_OPTIONS(self) -> None:
+        self.send_maintenance()
 
     def log_message(self, _format: str, *args: object) -> None:
         return

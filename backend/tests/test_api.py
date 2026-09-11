@@ -9,6 +9,7 @@ import httpx2 as httpx
 from PIL import Image
 from sqlalchemy import func, select, text
 
+from minilog.api import health
 from minilog.database import SessionLocal, get_db
 from minilog.main import app
 from minilog.models import CareRecord, ProcessedMutation, SyncChange, SyncState, now_ms
@@ -97,6 +98,22 @@ def test_compatibility_endpoint_refuses_an_unexpected_schema() -> None:
         assert incompatible.status_code == 503
         assert incompatible.json()["detail"] == "maintenance"
 
+    asyncio.run(with_client(scenario))
+
+
+def test_health_refuses_read_only_storage(monkeypatch) -> None:
+    def fail_writable_probe(_path) -> None:
+        raise RuntimeError("read-only")
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        ready = await client.get("/api/v1/health/ready")
+        assert ready.status_code == 503
+        assert ready.json()["detail"] == "storage_unavailable"
+        compatibility = await client.get("/api/v1/health/compatibility")
+        assert compatibility.status_code == 503
+        assert compatibility.json()["detail"] == "maintenance"
+
+    monkeypatch.setattr(health, "verify_database_writable", fail_writable_probe)
     asyncio.run(with_client(scenario))
 
 

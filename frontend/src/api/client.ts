@@ -34,6 +34,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isTemporaryApiFailure(error: unknown): boolean {
+  return error instanceof TypeError || (error instanceof ApiError && error.status >= 500);
+}
+
 export interface RecordListOptions {
   cursor?: string;
   recordTypes?: CareRecord["record_type"][];

@@ -93,3 +93,23 @@ test("marks a rejected creation failed, continues the queue, and supports explic
   pending = await pendingForBaby(babyId);
   expect(pending[0].status).toBe("queued");
 });
+
+test("keeps maintenance failures queued for a later replay", async () => {
+  await clearLocalData();
+  vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+  const babyId = crypto.randomUUID();
+  await queueCreation({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body: "Keep through maintenance",
+  }, "maintenance-mutation");
+  vi.spyOn(api, "createRecord").mockRejectedValue(new ApiError(503, "maintenance"));
+
+  expect(await flushPending()).toEqual({ completed: 0, failed: 0 });
+  expect(await pendingForBaby(babyId)).toEqual([
+    expect.objectContaining({ mutationId: "maintenance-mutation", status: "queued" }),
+  ]);
+});

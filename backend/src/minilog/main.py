@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -8,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from starlette.datastructures import Headers, MutableHeaders
+from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from minilog.api.router import api_router
@@ -16,7 +15,6 @@ from minilog.config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("minilog")
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 
 
 @asynccontextmanager
@@ -34,12 +32,7 @@ class RequestContextMiddleware:
             return
 
         request = Request(scope)
-        supplied_request_id = Headers(scope=scope).get("X-Request-ID", "")
-        request_id = (
-            supplied_request_id
-            if REQUEST_ID_PATTERN.fullmatch(supplied_request_id)
-            else str(uuid.uuid4())
-        )
+        request_id = str(uuid.uuid4())
         started = time.monotonic()
         response_started = False
         response_status = 500
