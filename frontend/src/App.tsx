@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Baby as BabyIcon, History, LogOut, Plus, Settings, Sparkles, Upload } from "lucide-react";
+import { Baby as BabyIcon, History, ImageOff, LogOut, Plus, Settings, Sparkles, Upload } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
@@ -57,6 +57,10 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
       window.location.assign("/");
     },
   });
+  const removeProfilePicture = useMutation({
+    mutationFn: api.deleteProfilePicture,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["babies"] }),
+  });
 
   useEffect(() => {
     if (!babies.data?.length) return;
@@ -95,6 +99,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
             <span className="sr-only">Change profile picture</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await queryClient.invalidateQueries({ queryKey: ["babies"] }); } }} />
           </label>
+          {baby.has_profile_picture && <button className="ghost icon-button" aria-label="Remove profile picture" disabled={removeProfilePicture.isPending} onClick={() => removeProfilePicture.mutate(baby.id)}><ImageOff /></button>}
           <NavLink className="ghost icon-button topbar-link" to="/settings" aria-label="Settings"><Settings /></NavLink>
           <button className="ghost icon-button" onClick={() => logout.mutate()} aria-label="Sign out"><LogOut /></button>
         </div>

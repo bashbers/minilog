@@ -27,6 +27,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly detail: string,
     readonly current?: CareRecord,
+    readonly oldestValidCursor?: number,
   ) {
     super(detail);
   }
@@ -66,11 +67,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const error = (await response.json().catch(() => ({}))) as {
-      detail?: string | { code?: string; current?: CareRecord };
+      detail?: string | {
+        code?: string;
+        current?: CareRecord;
+        oldest_valid_cursor?: number;
+      };
     };
     const detail = typeof error.detail === "string" ? error.detail : error.detail?.code;
     const current = typeof error.detail === "object" ? error.detail.current : undefined;
-    throw new ApiError(response.status, detail ?? "request_failed", current);
+    const oldestValidCursor = typeof error.detail === "object"
+      ? error.detail.oldest_valid_cursor
+      : undefined;
+    throw new ApiError(
+      response.status,
+      detail ?? "request_failed",
+      current,
+      oldestValidCursor,
+    );
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -152,6 +165,8 @@ export const api = {
     body.set("image", file);
     return request<void>(`/babies/${babyId}/profile-picture`, { method: "PUT", body });
   },
+  deleteProfilePicture: (babyId: string) =>
+    request<void>(`/babies/${babyId}/profile-picture`, { method: "DELETE" }),
   caregivers: () => request<Caregiver[]>("/caregivers"),
   quickActions: () =>
     request<QuickActionPreference[]>("/caregivers/current/quick-actions"),

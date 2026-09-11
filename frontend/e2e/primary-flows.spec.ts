@@ -77,6 +77,7 @@ const futureRecord = {
 
 async function mockApi(page: Page) {
   let recordDeleted = false;
+  let hasProfilePicture = true;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -93,9 +94,20 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/babies") {
       return json([
-        { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: false, updated_at: 1 },
+        { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: hasProfilePicture, updated_at: 1 },
         { id: secondBabyId, display_name: "Noah", birth_date: "2025-01-01", due_date: null, has_profile_picture: false, updated_at: 1 },
       ]);
+    }
+    if (path === `/api/v1/babies/${babyId}/profile-picture`) {
+      if (request.method() === "DELETE") {
+        hasProfilePicture = false;
+        return route.fulfill({ status: 204, body: "" });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+      });
     }
     if (path === "/api/v1/care-records/active-status") return json([{ baby_id: secondBabyId, active_types: ["sleep"] }]);
     if (path === "/api/v1/caregivers/current/quick-actions") {
@@ -167,6 +179,10 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sleep" })).toBeVisible();
   await expect(page.getByText("Future care")).toHaveCount(0);
+  const removePicture = page.getByRole("button", { name: "Remove profile picture" });
+  await expect(removePicture).toBeVisible();
+  await removePicture.click();
+  await expect(removePicture).toHaveCount(0);
   await expectAccessible(page);
   const noahActive = page.getByRole("button", { name: "Noah 1 active" });
   await expect(noahActive).toBeVisible();

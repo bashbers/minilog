@@ -81,3 +81,27 @@ test("preserves the current care record from a stale-revision response", async (
     current,
   });
 });
+
+test("preserves the server recovery boundary from an expired sync cursor", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    detail: { code: "sync_cursor_expired", oldest_valid_cursor: 42 },
+  }), { status: 409, headers: { "Content-Type": "application/json" } })));
+
+  await expect(api.sync(1)).rejects.toMatchObject({
+    status: 409,
+    detail: "sync_cursor_expired",
+    oldestValidCursor: 42,
+  });
+});
+
+test("removes a profile picture with a state-changing DELETE request", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await api.deleteProfilePicture("baby-id");
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/babies/baby-id/profile-picture",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+});

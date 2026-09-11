@@ -103,6 +103,11 @@ export async function cachedRecords(babyId: string) {
   return db.get("cache", `records:${babyId}`);
 }
 
+export async function clearRecordCache() {
+  const db = await database;
+  await db.clear("cache");
+}
+
 export async function getSyncCursor() {
   const db = await database;
   return (await db.get("meta", "syncCursor")) ?? 0;

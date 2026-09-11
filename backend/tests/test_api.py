@@ -6,8 +6,11 @@ from uuid import uuid4
 
 import httpx2 as httpx
 from PIL import Image
+from sqlalchemy import func, select
 
+from minilog.database import SessionLocal
 from minilog.main import app
+from minilog.models import CareRecord, ProcessedMutation, SyncChange, SyncState, now_ms
 
 
 async def with_client(scenario: Callable[[httpx.AsyncClient], Awaitable[None]]) -> None:
@@ -248,6 +251,61 @@ def test_mutation_retry_and_revision_conflict_are_safe() -> None:
             and change["operation"] == "delete"
         )
         assert deletion["revision"] == 3
+
+    asyncio.run(with_client(scenario))
+
+
+def test_expired_sync_cursor_prunes_history_but_preserves_pending_recovery_boundary() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        mutation_id = str(uuid4())
+        created = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf, "X-Mutation-ID": mutation_id},
+            json=record_payload(baby_id, "note", body="Ready to expire"),
+        )
+        assert created.status_code == 201, created.text
+        record_id = created.json()["id"]
+        deleted = await client.delete(
+            f"/api/v1/care-records/{record_id}",
+            headers={"X-CSRF-Token": csrf},
+            params={"expected_revision": 1},
+        )
+        assert deleted.status_code == 204
+
+        expired_at = now_ms() - 40 * 24 * 60 * 60 * 1000
+        with SessionLocal() as db:
+            for change in db.scalars(select(SyncChange)):
+                change.changed_at = expired_at
+            processed = db.get(ProcessedMutation, mutation_id)
+            assert processed is not None
+            processed.processed_at = expired_at
+            record = db.get(CareRecord, record_id)
+            assert record is not None
+            record.deleted_at = expired_at
+            state = db.get(SyncState, 1)
+            if state is not None:
+                state.last_pruned_at = None
+            db.commit()
+
+        expired = await client.get("/api/v1/sync", params={"after": 0})
+        assert expired.status_code == 409, expired.text
+        detail = expired.json()["detail"]
+        assert detail["code"] == "sync_cursor_expired"
+        assert detail["oldest_valid_cursor"] >= 2
+
+        with SessionLocal() as db:
+            assert db.get(CareRecord, record_id) is None
+            assert db.get(ProcessedMutation, mutation_id) is None
+            assert db.scalar(select(func.count()).select_from(SyncChange)) == 0
+
+        resumed = await client.get(
+            "/api/v1/sync",
+            params={"after": detail["oldest_valid_cursor"]},
+        )
+        assert resumed.status_code == 200, resumed.text
+        assert resumed.json()["changes"] == []
 
     asyncio.run(with_client(scenario))
 

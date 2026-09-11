@@ -472,6 +472,15 @@ class SyncPage(APIModel):
     oldest_valid_cursor: int
 
 
+class SyncCursorExpiredDetail(APIModel):
+    code: Literal["sync_cursor_expired"] = "sync_cursor_expired"
+    oldest_valid_cursor: int
+
+
+class SyncCursorExpiredResponse(APIModel):
+    detail: SyncCursorExpiredDetail
+
+
 class PiyoLogPreview(APIModel):
     source_hash: str
     duplicate_import_id: UUID | None = None

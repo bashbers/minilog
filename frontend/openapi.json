@@ -3010,6 +3010,16 @@
               }
             }
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncCursorExpiredResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -6308,6 +6318,37 @@
           "revision"
         ],
         "title": "SyncChangeOut"
+      },
+      "SyncCursorExpiredDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "sync_cursor_expired",
+            "title": "Code",
+            "default": "sync_cursor_expired"
+          },
+          "oldest_valid_cursor": {
+            "type": "integer",
+            "title": "Oldest Valid Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "oldest_valid_cursor"
+        ],
+        "title": "SyncCursorExpiredDetail"
+      },
+      "SyncCursorExpiredResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/SyncCursorExpiredDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "SyncCursorExpiredResponse"
       },
       "SyncPage": {
         "properties": {

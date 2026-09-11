@@ -1758,6 +1758,21 @@ export interface components {
             /** Revision */
             revision: number;
         };
+        /** SyncCursorExpiredDetail */
+        SyncCursorExpiredDetail: {
+            /**
+             * Code
+             * @default sync_cursor_expired
+             * @constant
+             */
+            code: "sync_cursor_expired";
+            /** Oldest Valid Cursor */
+            oldest_valid_cursor: number;
+        };
+        /** SyncCursorExpiredResponse */
+        SyncCursorExpiredResponse: {
+            detail: components["schemas"]["SyncCursorExpiredDetail"];
+        };
         /** SyncPage */
         SyncPage: {
             /** Changes */
@@ -3117,6 +3132,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncPage"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncCursorExpiredResponse"];
                 };
             };
             /** @description Validation Error */
