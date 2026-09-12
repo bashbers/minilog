@@ -15,7 +15,7 @@ import { Trends } from "./components/Trends";
 import { useForegroundSync } from "./hooks/useForegroundSync";
 import { useRecords } from "./hooks/useRecords";
 import { dateKeyInTimeZone, shiftDateKey } from "./lib/time";
-import { clearLocalData, clearProfilePictureCache, retainCurrentProfilePictureCache } from "./offline/store";
+import { clearLocalData, clearProfilePictureCache, reconcileBabyLocalData, retainCurrentProfilePictureCache } from "./offline/store";
 
 const EXPECTED_API_CONTRACT_VERSION = 1;
 
@@ -107,14 +107,19 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
     }
   }, [babies.data, selectedId]);
 
+  useEffect(() => {
+    if (!babies.data) return;
+    void reconcileBabyLocalData(babies.data.map((baby) => baby.id));
+  }, [babies.data]);
+
   const selectedBaby = babies.data?.find((item) => item.id === selectedId) ?? babies.data?.[0];
   useEffect(() => {
-    if (!selectedBaby) return;
-    const pictureUrl = selectedBaby.has_profile_picture
+    if (!babies.data) return;
+    const pictureUrl = selectedBaby?.has_profile_picture
       ? `/api/v1/babies/${selectedBaby.id}/profile-picture?v=${selectedBaby.updated_at}`
       : null;
     void retainCurrentProfilePictureCache(pictureUrl);
-  }, [selectedBaby?.has_profile_picture, selectedBaby?.id, selectedBaby?.updated_at]);
+  }, [babies.data, selectedBaby?.has_profile_picture, selectedBaby?.id, selectedBaby?.updated_at]);
 
   if (babies.isLoading || household.isLoading) return <LoadingScreen />;
   if (!household.data) return <ErrorScreen />;

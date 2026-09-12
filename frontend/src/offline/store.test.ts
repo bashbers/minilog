@@ -2,7 +2,7 @@ import { vi } from "vitest";
 
 import { api, ApiError } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
-import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, clearProfilePictureCache, flushPending, pendingForBaby, queueCreation, retainCurrentProfilePictureCache, retryPendingCreation } from "./store";
+import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, clearProfilePictureCache, flushPending, pendingForBaby, queueCreation, reconcileBabyLocalData, retainCurrentProfilePictureCache, retryPendingCreation } from "./store";
 
 test("persists offline creations by baby until synchronization", async () => {
   await clearLocalData();
@@ -111,6 +111,31 @@ test("Baby deletion cleanup continues when browser Cache Storage rejects deletio
   expect(await pendingForBaby(babyId)).toEqual([]);
   expect(await cachedRecords(babyId)).toBeUndefined();
   vi.unstubAllGlobals();
+});
+
+test("Baby-list reconciliation removes local data for remotely deleted Babies", async () => {
+  await clearLocalData();
+  const deletedBabyId = crypto.randomUUID();
+  const retainedBabyId = crypto.randomUUID();
+  const payload = (babyId: string): CareRecordCreate => ({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body: "Local data",
+  });
+  await queueCreation(payload(deletedBabyId), "remote-deleted-mutation");
+  await queueCreation(payload(retainedBabyId), "retained-mutation");
+  await cacheRecords(deletedBabyId, { items: [], next_cursor: null });
+  await cacheRecords(retainedBabyId, { items: [], next_cursor: null });
+
+  await reconcileBabyLocalData([retainedBabyId]);
+
+  expect(await pendingForBaby(deletedBabyId)).toEqual([]);
+  expect(await cachedRecords(deletedBabyId)).toBeUndefined();
+  expect(await pendingForBaby(retainedBabyId)).toHaveLength(1);
+  expect(await cachedRecords(retainedBabyId)).toEqual({ items: [], next_cursor: null });
 });
 
 test("profile picture changes remove every version from the managed runtime cache", async () => {

@@ -81,6 +81,7 @@ async function mockApi(page: Page) {
   let hasProfilePicture = true;
   let profilePictureVersion = 1;
   let profilePictureColor = "#f0a07a";
+  let babyDeleted = false;
   let caregiverIdentityErased = false;
   await page.exposeFunction("simulateRemotePictureUpdate", () => {
     hasProfilePicture = true;
@@ -90,6 +91,9 @@ async function mockApi(page: Page) {
   await page.exposeFunction("simulateRemotePictureRemoval", () => {
     hasProfilePicture = false;
     profilePictureVersion += 1;
+  });
+  await page.exposeFunction("simulateRemoteBabyDeletion", () => {
+    babyDeleted = true;
   });
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -112,7 +116,7 @@ async function mockApi(page: Page) {
       return json([
         { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: hasProfilePicture, updated_at: profilePictureVersion },
         { id: secondBabyId, display_name: "Noah", birth_date: "2025-01-01", due_date: null, has_profile_picture: false, updated_at: 1 },
-      ]);
+      ].filter((baby) => !babyDeleted || baby.id !== babyId));
     }
     if (path === `/api/v1/babies/${babyId}/profile-picture`) {
       if (request.method() === "PUT") {
@@ -347,6 +351,13 @@ test("visible Baby polling reconciles remote profile changes and removal", async
     const cache = await caches.open("minilog-profile-pictures");
     return (await cache.keys()).map((request) => request.url);
   })).toEqual([]);
+
+  await page.evaluate(async () => {
+    await (window as unknown as { simulateRemoteBabyDeletion: () => Promise<void> })
+      .simulateRemoteBabyDeletion();
+  });
+  await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 7_000 });
+  expect(await page.evaluate(() => localStorage.getItem("selectedBaby"))).toBe(secondBabyId);
 });
 
 test("History filters every care type and loads an equal-timestamp-safe cursor", async ({ page }) => {

@@ -1,5 +1,4 @@
 import fcntl
-import logging
 import os
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import contextmanager
@@ -27,7 +26,6 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
-logger = logging.getLogger("minilog.database")
 
 database_url = make_url(settings.database_url)
 database_path: Path | None = None
@@ -91,6 +89,18 @@ def private_database_changes(session: Session) -> Iterator[None]:
         try:
             try:
                 session.execute(text("PRAGMA locking_mode=EXCLUSIVE"))
+                busy, _remaining, _checkpointed = session.execute(
+                    text("PRAGMA wal_checkpoint(TRUNCATE)")
+                ).one()
+                if busy:
+                    raise PrivateDatabaseBusyError(
+                        "Private database maintenance could not checkpoint active readers."
+                    )
+                journal_mode = session.execute(text("PRAGMA journal_mode=DELETE")).scalar_one()
+                if str(journal_mode).lower() != "delete":
+                    raise PrivateDatabaseBusyError(
+                        "Private database maintenance could not enter rollback-journal mode."
+                    )
                 session.execute(text("BEGIN EXCLUSIVE"))
             except OperationalError as exc:
                 session.rollback()
@@ -104,24 +114,12 @@ def private_database_changes(session: Session) -> Iterator[None]:
             except Exception:
                 session.rollback()
                 raise
-            try:
-                busy, _remaining, _checkpointed = session.execute(
-                    text("PRAGMA wal_checkpoint(TRUNCATE)")
-                ).one()
-                session.commit()
-                if busy:
-                    logger.critical("private database WAL truncation unexpectedly remained busy")
-            except Exception:
-                # The mutation is already durable. Never turn a committed destructive request
-                # into a reported failure that invites an unsafe retry.
-                logger.exception("private database WAL truncation failed after commit")
         finally:
             # Close the Session on success and on failed exclusivity so it cannot retain a
             # reference to the one-use connection.
             session.close()
             session.bind = original_bind
-            # SQLite cannot leave EXCLUSIVE locking mode while WAL is active. Destroy this
-            # connection instead of returning its permanently-exclusive handle to the pool.
+            # Destroy the one-use exclusive handle before releasing the application file lock.
             exclusive_connection.invalidate()
             exclusive_connection.close()
 

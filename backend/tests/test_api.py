@@ -605,6 +605,15 @@ def test_profile_picture_is_normalized_to_webp() -> None:
         replaced_version = (await client.get("/api/v1/babies")).json()[0]["updated_at"]
         assert replaced_version > uploaded_version
 
+        metadata_update = await client.put(
+            f"/api/v1/babies/{baby_id}",
+            headers={"X-CSRF-Token": csrf},
+            json={"display_name": "Mila updated", "birth_date": "2026-01-01"},
+        )
+        assert metadata_update.status_code == 200, metadata_update.text
+        metadata_version = metadata_update.json()["updated_at"]
+        assert metadata_version > replaced_version
+
         removed = await client.delete(
             f"/api/v1/babies/{baby_id}/profile-picture",
             headers={"X-CSRF-Token": csrf},
@@ -612,7 +621,7 @@ def test_profile_picture_is_normalized_to_webp() -> None:
         assert removed.status_code == 204, removed.text
         baby = (await client.get("/api/v1/babies")).json()[0]
         assert baby["has_profile_picture"] is False
-        assert baby["updated_at"] > replaced_version
+        assert baby["updated_at"] > metadata_version
 
     asyncio.run(with_client(scenario))
 

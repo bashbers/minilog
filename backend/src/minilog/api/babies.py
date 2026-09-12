@@ -72,7 +72,7 @@ async def update_baby(
     baby.display_name = payload.display_name.strip()
     baby.birth_date = payload.birth_date.isoformat()
     baby.due_date = payload.due_date.isoformat() if payload.due_date else None
-    baby.updated_at = now_ms()
+    baby.updated_at = max(now_ms(), baby.updated_at + 1)
     db.commit()
     db.refresh(baby)
     return baby_out(baby)

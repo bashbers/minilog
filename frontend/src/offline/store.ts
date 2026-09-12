@@ -136,6 +136,27 @@ export async function retainCurrentProfilePictureCache(pictureUrl: string | null
   }
 }
 
+export async function reconcileBabyLocalData(currentBabyIds: string[]) {
+  try {
+    const retained = new Set(currentBabyIds);
+    const db = await database;
+    const [pending, cacheKeys] = await Promise.all([
+      db.getAll("pending"),
+      db.getAllKeys("cache"),
+    ]);
+    await Promise.all([
+      ...pending
+        .filter((item) => !retained.has(item.payload.baby_id))
+        .map((item) => db.delete("pending", item.mutationId)),
+      ...cacheKeys
+        .filter((key) => key.startsWith("records:") && !retained.has(key.slice(8)))
+        .map((key) => db.delete("cache", key)),
+    ]);
+  } catch {
+    // Local cleanup is retried after the next successful Baby-list refresh.
+  }
+}
+
 export async function clearLocalData() {
   await Promise.allSettled([
     (async () => {
