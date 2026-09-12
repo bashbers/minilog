@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -17,6 +17,22 @@ import { invalidateCareRecordQueries } from "../api/cache";
 import type { Baby, Caregiver, PiyoLogPreview, QuickActionPreference } from "../api/types";
 import { careAction } from "../careActions";
 import { clearBabyLocalData, clearLocalData } from "../offline/store";
+
+export async function finishPermanentDeletion(
+  cleanup: () => Promise<void>,
+  queryClient: QueryClient,
+  navigate: () => void = () => window.location.assign("/"),
+) {
+  try {
+    await cleanup();
+  } catch {
+    // The server-side deletion succeeded; unavailable browser storage must not trap the user.
+  } finally {
+    queryClient.clear();
+    localStorage.removeItem("selectedBaby");
+    navigate();
+  }
+}
 
 export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Caregiver }) {
   const owner = caregiver.role === "owner";
@@ -191,25 +207,19 @@ function ExportCard({ baby }: { baby: Baby }) {
 }
 
 function DangerCard({ baby }: { baby: Baby }) {
+  const queryClient = useQueryClient();
   const household = useQuery({ queryKey: ["household"], queryFn: api.household });
   const [babyConfirmation, setBabyConfirmation] = useState("");
   const [exportAcknowledged, setExportAcknowledged] = useState(false);
   const [householdConfirmation, setHouseholdConfirmation] = useState("");
   const removeBaby = useMutation({
     mutationFn: () => api.deleteBaby(baby.id, babyConfirmation, exportAcknowledged),
-    onSuccess: async () => {
-      await clearBabyLocalData(baby.id);
-      localStorage.removeItem("selectedBaby");
-      window.location.assign("/");
-    },
+    onSuccess: () =>
+      finishPermanentDeletion(() => clearBabyLocalData(baby.id), queryClient),
   });
   const removeHousehold = useMutation({
     mutationFn: () => api.deleteHousehold(householdConfirmation),
-    onSuccess: async () => {
-      await clearLocalData();
-      localStorage.removeItem("selectedBaby");
-      window.location.assign("/");
-    },
+    onSuccess: () => finishPermanentDeletion(clearLocalData, queryClient),
   });
   const householdPhrase = household.data ? `DELETE ${household.data.display_name}` : "";
   return (

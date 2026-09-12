@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from sqlalchemy import MetaData, create_engine, event
+from sqlalchemy import MetaData, create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -43,9 +43,20 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False
 def configure_sqlite(dbapi_connection: object, _connection_record: object) -> None:
     cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA secure_delete=ON")
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
+
+
+def commit_private_changes(session: Session) -> None:
+    session.commit()
+    busy, _remaining, _checkpointed = session.execute(
+        text("PRAGMA wal_checkpoint(TRUNCATE)")
+    ).one()
+    session.commit()
+    if busy:
+        raise RuntimeError("SQLite could not truncate private WAL residue.")
 
 
 async def get_db() -> AsyncGenerator[Session, None]:

@@ -91,6 +91,28 @@ test("permanent Baby deletion clears only that Baby's local records and all pict
   vi.unstubAllGlobals();
 });
 
+test("Baby deletion cleanup continues when browser Cache Storage rejects deletion", async () => {
+  await clearLocalData();
+  const babyId = crypto.randomUUID();
+  await queueCreation({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body: "Must be removed from IndexedDB",
+  }, "cache-rejection-mutation");
+  await cacheRecords(babyId, { items: [], next_cursor: null });
+  vi.stubGlobal("caches", {
+    delete: vi.fn().mockRejectedValue(new Error("Cache Storage unavailable")),
+  });
+
+  await expect(clearBabyLocalData(babyId)).resolves.toBeUndefined();
+  expect(await pendingForBaby(babyId)).toEqual([]);
+  expect(await cachedRecords(babyId)).toBeUndefined();
+  vi.unstubAllGlobals();
+});
+
 test("marks a rejected creation failed, continues the queue, and supports explicit retry", async () => {
   await clearLocalData();
   vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);

@@ -175,4 +175,13 @@ def test_import_preview_confirm_and_exact_file_idempotency() -> None:
         assert len(bottles) == 1
         assert bottles[0]["details"]["consumed_ml"] == 140
 
+        source_deleted = await client.delete(
+            f"/api/v1/imports/piyolog/{confirmed.json()['id']}/source",
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert source_deleted.status_code == 204
+        batches = (await client.get("/api/v1/imports/piyolog")).json()
+        original_batch = next(item for item in batches if item["id"] == confirmed.json()["id"])
+        assert original_batch["source_retained"] is False
+
     asyncio.run(with_client(scenario))

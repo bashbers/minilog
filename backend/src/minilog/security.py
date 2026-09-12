@@ -32,6 +32,14 @@ def verify_password(encoded: str, password: str) -> bool:
         return False
 
 
+def is_password_hash(encoded: str) -> bool:
+    try:
+        password_hasher.check_needs_rehash(encoded)
+        return True
+    except InvalidHashError:
+        return False
+
+
 def new_token() -> str:
     return secrets.token_urlsafe(32)
 

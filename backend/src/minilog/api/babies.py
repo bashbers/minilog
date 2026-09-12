@@ -7,6 +7,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 
 from minilog.config import get_settings
+from minilog.database import commit_private_changes
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
 from minilog.models import (
     Baby,
@@ -121,7 +122,7 @@ async def set_profile_picture(
         picture.webp_bytes = derivative
         picture.content_hash = hashlib.sha256(derivative).hexdigest()
         picture.updated_at = now_ms()
-    db.commit()
+    commit_private_changes(db)
 
 
 @router.get("/babies/{baby_id}/profile-picture")
@@ -132,7 +133,7 @@ async def get_profile_picture(baby_id: str, _caregiver: CurrentCaregiver, db: Da
     return Response(
         picture.webp_bytes,
         media_type="image/webp",
-        headers={"ETag": f'"{picture.content_hash}"', "Cache-Control": "private, max-age=3600"},
+        headers={"ETag": f'"{picture.content_hash}"', "Cache-Control": "private, no-store"},
     )
 
 
@@ -146,7 +147,7 @@ async def delete_profile_picture(
     picture = db.get(BabyProfilePicture, baby_id)
     if picture is not None:
         db.delete(picture)
-        db.commit()
+        commit_private_changes(db)
 
 
 @router.delete("/babies/{baby_id}", status_code=status.HTTP_204_NO_CONTENT)

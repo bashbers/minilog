@@ -97,6 +97,21 @@ def write_self_consistent_export(
     )
 
 
+def write_payload_variant(
+    path: Path,
+    original_members: dict[str, bytes],
+    mutate: Callable[[dict], None],
+) -> None:
+    payload = json.loads(original_members["data.json"])
+    mutate(payload)
+    data = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    write_self_consistent_export(
+        path, original_members, replacements={"data.json": data}
+    )
+
+
 def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_path) -> None:
     async def scenario(client: httpx.AsyncClient) -> bytes:
         setup = await client.post(
@@ -263,7 +278,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     archive_path = tmp_path / "export.zip"
     archive_path.write_bytes(archive_bytes)
     with sqlite3.connect(TEST_DATABASE) as connection:
-        connection.execute("UPDATE note_records SET body = 'Changed after export'")
+        connection.execute("UPDATE note_records SET body = 'RESTORE_PRIVATE_MARKER_C3F971'")
         connection.execute("UPDATE baby_profile_pictures SET webp_bytes = X'00'")
         connection.execute("UPDATE import_batches SET source_contents = X'01'")
     engine.dispose()
@@ -281,7 +296,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
         restore_minilog_export(invalid_path, TEST_DATABASE)
     with sqlite3.connect(TEST_DATABASE) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
-            "Changed after export"
+            "RESTORE_PRIVATE_MARKER_C3F971"
         )
         assert connection.execute("SELECT webp_bytes FROM baby_profile_pictures").fetchone()[0] == (
             b"\x00"
@@ -353,9 +368,104 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="does not match its import"):
         restore_minilog_export(substituted_source_path, TEST_DATABASE)
 
+    invalid_source_payload = json.loads(members["data.json"])
+    invalid_source_payload["tables"]["import_batches"][0]["source_hash"] = hashlib.sha256(
+        b"\x80"
+    ).hexdigest()
+    invalid_source_data = json.dumps(
+        invalid_source_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    invalid_source_path = tmp_path / "invalid-source-text.zip"
+    write_self_consistent_export(
+        invalid_source_path,
+        members,
+        replacements={"data.json": invalid_source_data, import_name: b"\x80"},
+    )
+    with pytest.raises(RuntimeError, match="not valid import text"):
+        restore_minilog_export(invalid_source_path, TEST_DATABASE)
+
+    def remove_active_owner(payload: dict) -> None:
+        owner = next(
+            row for row in payload["tables"]["caregivers"] if row["role"] == "OWNER"
+        )
+        owner["is_active"] = False
+
+    no_owner_path = tmp_path / "no-active-owner.zip"
+    write_payload_variant(no_owner_path, members, remove_active_owner)
+    with pytest.raises(RuntimeError, match="exactly one active Owner"):
+        restore_minilog_export(no_owner_path, TEST_DATABASE)
+
+    def invalidate_owner_password(payload: dict) -> None:
+        owner = next(
+            row for row in payload["tables"]["caregivers"] if row["role"] == "OWNER"
+        )
+        owner["password_hash"] = "not-an-argon2-hash"
+
+    invalid_owner_password_path = tmp_path / "invalid-owner-password.zip"
+    write_payload_variant(
+        invalid_owner_password_path, members, invalidate_owner_password
+    )
+    with pytest.raises(RuntimeError, match="invalid Caregiver identity"):
+        restore_minilog_export(invalid_owner_password_path, TEST_DATABASE)
+
+    def empty_note(payload: dict) -> None:
+        payload["tables"]["note_records"][0]["body"] = ""
+
+    empty_note_path = tmp_path / "empty-note.zip"
+    write_payload_variant(empty_note_path, members, empty_note)
+    with pytest.raises(RuntimeError, match="invalid care-record value"):
+        restore_minilog_export(empty_note_path, TEST_DATABASE)
+
+    def non_positive_medication(payload: dict) -> None:
+        payload["tables"]["medication_administration_records"][0]["amount_value"] = "0"
+
+    invalid_medication_path = tmp_path / "invalid-medication.zip"
+    write_payload_variant(invalid_medication_path, members, non_positive_medication)
+    with pytest.raises(RuntimeError, match="invalid care-record value"):
+        restore_minilog_export(invalid_medication_path, TEST_DATABASE)
+
+    def wrong_measurement_canonical_value(payload: dict) -> None:
+        payload["tables"]["measurement_records"][0]["canonical_value"] = "999"
+
+    invalid_measurement_path = tmp_path / "invalid-measurement.zip"
+    write_payload_variant(
+        invalid_measurement_path, members, wrong_measurement_canonical_value
+    )
+    with pytest.raises(RuntimeError, match="invalid care-record value"):
+        restore_minilog_export(invalid_measurement_path, TEST_DATABASE)
+
+    def out_of_bounds_breastfeeding_interval(payload: dict) -> None:
+        interval = payload["tables"]["breastfeeding_intervals"][0]
+        interval["started_at_utc"] -= 60_000
+
+    out_of_bounds_path = tmp_path / "out-of-bounds-breastfeeding.zip"
+    write_payload_variant(
+        out_of_bounds_path, members, out_of_bounds_breastfeeding_interval
+    )
+    with pytest.raises(RuntimeError, match="invalid care-record value"):
+        restore_minilog_export(out_of_bounds_path, TEST_DATABASE)
+
+    def overlapping_breastfeeding_intervals(payload: dict) -> None:
+        interval = payload["tables"]["breastfeeding_intervals"][0]
+        payload["tables"]["breastfeeding_intervals"].append(
+            {
+                "id": str(uuid4()),
+                "care_record_id": interval["care_record_id"],
+                "position": 1,
+                "side": "right",
+                "started_at_utc": interval["started_at_utc"] + 1,
+                "ended_at_utc": interval["ended_at_utc"],
+            }
+        )
+
+    overlapping_path = tmp_path / "overlapping-breastfeeding.zip"
+    write_payload_variant(overlapping_path, members, overlapping_breastfeeding_intervals)
+    with pytest.raises(RuntimeError, match="invalid care-record value"):
+        restore_minilog_export(overlapping_path, TEST_DATABASE)
+
     with sqlite3.connect(TEST_DATABASE) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
-            "Changed after export"
+            "RESTORE_PRIVATE_MARKER_C3F971"
         )
         assert connection.execute("SELECT webp_bytes FROM baby_profile_pictures").fetchone()[0] == (
             b"\x00"
@@ -374,8 +484,17 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
         )
     with sqlite3.connect(recovery) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
-            "Changed after export"
+            "RESTORE_PRIVATE_MARKER_C3F971"
         )
+
+    engine.dispose()
+    for live_path in (
+        TEST_DATABASE,
+        Path(f"{TEST_DATABASE}-wal"),
+        Path(f"{TEST_DATABASE}-shm"),
+    ):
+        if live_path.exists():
+            assert b"RESTORE_PRIVATE_MARKER_C3F971" not in live_path.read_bytes()
 
     with SessionLocal() as db:
         restored_members = archive_members(build_minilog_export(db))
@@ -440,3 +559,19 @@ def test_checked_archive_rejects_unknown_versions_members_and_excessive_expansio
     monkeypatch.setattr(exports, "MAX_RESTORE_BYTES", 1)
     with pytest.raises(RuntimeError, match="safety limit"):
         checked_archive(oversized)
+
+
+def test_checked_archive_preflights_file_size_and_member_count(tmp_path, monkeypatch) -> None:
+    _manifest, members = checked_fixture_members()
+    path = tmp_path / "preflight.zip"
+    write_archive(path, members)
+
+    original_archive_limit = exports.MAX_RESTORE_ARCHIVE_BYTES
+    monkeypatch.setattr(exports, "MAX_RESTORE_ARCHIVE_BYTES", 1)
+    with pytest.raises(RuntimeError, match="archive-size limit"):
+        checked_archive(path)
+
+    monkeypatch.setattr(exports, "MAX_RESTORE_ARCHIVE_BYTES", original_archive_limit)
+    monkeypatch.setattr(exports, "MAX_RESTORE_MEMBERS", 1)
+    with pytest.raises(RuntimeError, match="too many members"):
+        checked_archive(path)

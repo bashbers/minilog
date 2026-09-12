@@ -86,7 +86,7 @@ There is no outbound crash reporter. A support bundle, if added later, must be a
 
 ## Deletion and residual data
 
-Normal Care-record deletion uses a 30-day synchronization tombstone. Permanent Baby or Household deletion removes live application data without a hidden recovery copy. Existing operator-created exports, host snapshots, and backups are outside the application's ability to erase; deletion UI and documentation say so plainly.
+Normal Care-record deletion uses a 30-day synchronization tombstone. Permanent identity, Baby, Household, picture, and retained-source deletion uses SQLite secure deletion and a truncating WAL checkpoint so removed values are not left in live database pages or sidecars. Existing operator-created exports, host snapshots, filesystem snapshots, flash-storage remapping, and backups are outside the application's ability to erase; deletion UI and documentation say so plainly.
 
 Discarded profile-picture originals and replaced derivatives are not retained. An Owner may erase a former Caregiver's identity while keeping care history attributed to `Deleted caregiver`.
 

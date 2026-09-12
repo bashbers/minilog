@@ -202,6 +202,21 @@ class BreastfeedingCreate(RecordInputBase):
     estimated_amount_ml: int | None = Field(default=None, ge=0, le=10_000)
     intervals: list[BreastfeedingIntervalInput] = Field(default_factory=list, max_length=100)
 
+    @model_validator(mode="after")
+    def intervals_are_ordered_bounded_and_non_overlapping(self) -> BreastfeedingCreate:
+        previous_end: datetime | None = None
+        for position, interval in enumerate(self.intervals):
+            if interval.started_at < self.occurred_at:
+                raise ValueError("interval must not start before the care record")
+            if self.ended_at is not None and (
+                interval.ended_at is None or interval.ended_at > self.ended_at
+            ):
+                raise ValueError("interval must end within the care record")
+            if position and (previous_end is None or interval.started_at < previous_end):
+                raise ValueError("intervals must be ordered and non-overlapping")
+            previous_end = interval.ended_at
+        return self
+
 
 class BottleFeedingCreate(RecordInputBase):
     record_type: Literal[RecordType.BOTTLE_FEEDING]

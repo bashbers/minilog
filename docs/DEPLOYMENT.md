@@ -55,7 +55,7 @@ Minilog does not provision DNS, certificates, port forwarding, or a hosted relay
 
 ## Data directory
 
-The data volume contains the SQLite database and application-managed recovery artifacts. SQLite runs with foreign keys, WAL, and a bounded busy timeout. The API is the sole database owner; operators do not mount the live database into unrelated containers.
+The data volume contains the SQLite database and application-managed recovery artifacts. SQLite runs with foreign keys, secure deletion, WAL, and a bounded busy timeout. Permanent application deletions truncate checkpointed WAL pages before reporting success. The API is the sole database owner; operators do not mount the live database into unrelated containers.
 
 ## Manual backup and restore
 
@@ -109,7 +109,7 @@ The ZIP is a private, lossless application export. Its root `manifest.json` cont
 
 `data.json` contains the same format version and a complete row list for every portable domain table. Each import-batch row explicitly records whether its source was retained. Binary profile-picture derivatives are stored as `profile-pictures/<baby-id>.webp`; retained PiyoLog source files are stored as `import-sources/<import-batch-id>.txt`. Invitations, sessions, mutation receipts, and synchronization history are deliberately excluded and are reset during restore.
 
-Restore accepts only the exact declared member set. It rejects malformed ZIPs, duplicate or unsafe paths, symbolic links, encrypted members, excessive member counts or expanded size, checksum mismatches, unknown versions, incomplete table sets, invalid columns, relationship violations, and database-revision mismatches. Validation and reconstruction happen in a temporary database; the live database is atomically replaced only after integrity checks pass.
+Restore accepts only the exact declared member set. It rejects oversized or malformed ZIPs, duplicate or unsafe paths, symbolic links, encrypted members, excessive member counts or expanded size, checksum mismatches, unknown versions, incomplete table sets, invalid columns, relationship or domain-invariant violations, invalid binary derivatives or retained source text, Owner lockout, and database-revision mismatches. Validation and reconstruction happen in a temporary database; the live database is atomically replaced only after integrity checks pass.
 
 ## Upgrades
 

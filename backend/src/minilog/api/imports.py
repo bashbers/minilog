@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, 
 from sqlalchemy import delete, select
 
 from minilog.config import Settings, get_settings
+from minilog.database import commit_private_changes
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
 from minilog.models import (
     Baby,
@@ -286,5 +287,5 @@ async def delete_import_source(
         raise HTTPException(status_code=404, detail="import_not_found")
     batch.source_contents = None
     batch.source_deleted_at = now_ms()
-    db.commit()
+    commit_private_changes(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

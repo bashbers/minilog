@@ -7,11 +7,15 @@ import json
 import os
 import sqlite3
 import stat
+import struct
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path, PurePosixPath
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PIL import Image, UnidentifiedImageError
+from pydantic import TypeAdapter
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
@@ -24,11 +28,16 @@ from minilog.models import (
     ImportedDailyNote,
     RecordType,
 )
-from minilog.services.care_records import to_output
+from minilog.schemas import CareRecordCreate
+from minilog.security import is_password_hash
+from minilog.services.care_records import canonical_measurement, to_output
+from minilog.services.piyolog import parse_piyolog
 
 EXPORT_FORMAT_VERSION = 2
 MAX_RESTORE_BYTES = 100_000_000
+MAX_RESTORE_ARCHIVE_BYTES = 100_000_000
 MAX_RESTORE_MEMBERS = 10_000
+MAX_CENTRAL_DIRECTORY_BYTES = 5_000_000
 DATA_TABLES = [
     "households",
     "caregivers",
@@ -68,6 +77,7 @@ DETAIL_TABLE_BY_RECORD_TYPE = {
     RecordType.NOTE.name: "note_records",
     RecordType.IMPORTED_CARE_RECORD.name: "imported_care_records",
 }
+CARE_RECORD_CREATE_ADAPTER = TypeAdapter(CareRecordCreate)
 
 
 def json_value(value):
@@ -202,9 +212,50 @@ def spreadsheet_safe(value: str) -> str:
     return value
 
 
+def preflight_zip_archive(path: Path) -> None:
+    archive_size = path.stat().st_size
+    if archive_size > MAX_RESTORE_ARCHIVE_BYTES:
+        raise RuntimeError("Export ZIP exceeds the restore archive-size limit.")
+    with path.open("rb") as source:
+        source.seek(max(0, archive_size - (65_535 + 22)))
+        tail = source.read()
+    signature = b"PK\x05\x06"
+    position = tail.rfind(signature)
+    if position < 0 or len(tail) - position < 22:
+        raise RuntimeError("Export archive is not a supported ZIP file.")
+    (
+        _signature,
+        disk_number,
+        directory_disk,
+        entries_on_disk,
+        entry_count,
+        directory_size,
+        directory_offset,
+        comment_size,
+    ) = struct.unpack_from("<4s4H2LH", tail, position)
+    if position + 22 + comment_size != len(tail):
+        raise RuntimeError("Export archive has an invalid ZIP directory.")
+    if (
+        disk_number != 0
+        or directory_disk != 0
+        or entries_on_disk != entry_count
+        or entry_count == 0xFFFF
+        or directory_size == 0xFFFFFFFF
+        or directory_offset == 0xFFFFFFFF
+    ):
+        raise RuntimeError("Export archive uses an unsupported ZIP layout.")
+    if entry_count > MAX_RESTORE_MEMBERS:
+        raise RuntimeError("Export archive contains too many members.")
+    if directory_size > MAX_CENTRAL_DIRECTORY_BYTES:
+        raise RuntimeError("Export archive ZIP directory is too large.")
+    if directory_offset + directory_size > archive_size:
+        raise RuntimeError("Export archive has an invalid ZIP directory.")
+
+
 def checked_archive(path: Path) -> tuple[dict, dict[str, bytes]]:
     if not path.is_file():
         raise RuntimeError(f"Export archive does not exist: {path}")
+    preflight_zip_archive(path)
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
@@ -312,6 +363,67 @@ def validate_restored_domain(database_path: Path) -> None:
         household_count = connection.execute("SELECT COUNT(*) FROM households").fetchone()[0]
         if household_count != 1:
             raise RuntimeError("Export must contain exactly one Household.")
+        active_owner_count = connection.execute(
+            "SELECT COUNT(*) FROM caregivers WHERE role = 'OWNER' AND is_active = 1"
+        ).fetchone()[0]
+        if active_owner_count != 1:
+            raise RuntimeError("Export must contain exactly one active Owner.")
+        household = connection.execute(
+            "SELECT display_name, time_zone FROM households"
+        ).fetchone()
+        try:
+            if not household[0].strip():
+                raise ValueError
+            ZoneInfo(household[1])
+        except (AttributeError, TypeError, ValueError, ZoneInfoNotFoundError) as exc:
+            raise RuntimeError("Export contains invalid Household identity data.") from exc
+        for username, username_display, display_name, password_hash in connection.execute(
+            """
+            SELECT username_normalized, username_display, display_name, password_hash
+            FROM caregivers
+            """
+        ):
+            if (
+                not username.strip()
+                or not username_display.strip()
+                or not display_name.strip()
+                or not is_password_hash(password_hash)
+            ):
+                raise RuntimeError("Export contains invalid Caregiver identity data.")
+        for display_name, birth_date, due_date in connection.execute(
+            "SELECT display_name, birth_date, due_date FROM babies"
+        ):
+            try:
+                if not display_name.strip():
+                    raise ValueError
+                date.fromisoformat(birth_date)
+                if due_date is not None:
+                    date.fromisoformat(due_date)
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise RuntimeError("Export contains invalid Baby identity data.") from exc
+        for source_time_zone, report_json in connection.execute(
+            "SELECT source_time_zone, report_json FROM import_batches"
+        ):
+            try:
+                ZoneInfo(source_time_zone)
+                if not isinstance(json.loads(report_json), dict):
+                    raise ValueError
+            except (
+                json.JSONDecodeError,
+                TypeError,
+                ValueError,
+                ZoneInfoNotFoundError,
+            ) as exc:
+                raise RuntimeError("Export contains invalid import metadata.") from exc
+        for local_date, body in connection.execute(
+            "SELECT local_date, body FROM imported_daily_notes"
+        ):
+            try:
+                date.fromisoformat(local_date)
+                if not body:
+                    raise ValueError
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("Export contains an invalid imported daily note.") from exc
 
         detail_tables_by_record: dict[str, list[str]] = {}
         for table in DETAIL_TABLE_BY_RECORD_TYPE.values():
@@ -342,7 +454,40 @@ def validate_restored_domain(database_path: Path) -> None:
     try:
         with Session(validation_engine) as db:
             for record in db.scalars(select(CareRecord)):
-                to_output(db, record)
+                item = to_output(db, record).root
+                if not item.author_label.strip() or not item.last_modified_by_label.strip():
+                    raise RuntimeError("A care record has invalid attribution.")
+                if item.record_type is RecordType.IMPORTED_CARE_RECORD:
+                    details = item.details
+                    if (
+                        not details.raw_label
+                        or len(details.raw_label) > 200
+                        or not details.raw_line
+                    ):
+                        raise RuntimeError("An imported care record is invalid.")
+                    continue
+                details = item.details.model_dump()
+                CARE_RECORD_CREATE_ADAPTER.validate_python(
+                    {
+                        "id": item.id,
+                        "baby_id": item.baby_id,
+                        "record_type": item.record_type.value,
+                        "occurred_at": item.occurred_at,
+                        "ended_at": item.ended_at,
+                        "local_offset_minutes": item.local_offset_minutes,
+                        "note": item.note,
+                        **details,
+                    }
+                )
+                if item.record_type is RecordType.MEASUREMENT:
+                    expected_value, expected_unit = canonical_measurement(
+                        details["kind"], details["entered_value"], details["entered_unit"]
+                    )
+                    if (
+                        details["canonical_value"] != Decimal(expected_value)
+                        or details["canonical_unit"] != expected_unit
+                    ):
+                        raise RuntimeError("A measurement has invalid canonical values.")
     except Exception as exc:
         raise RuntimeError("Export contains an invalid care-record value.") from exc
     finally:
@@ -374,6 +519,7 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
             target.execute("PRAGMA journal_mode = DELETE")
         os.chmod(temporary, 0o600)
         with sqlite3.connect(temporary) as connection:
+            connection.execute("PRAGMA secure_delete = ON")
             current_revision = connection.execute(
                 "SELECT version_num FROM alembic_version"
             ).fetchone()[0]
@@ -415,9 +561,13 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
                                 source_contents = files.get(source_name)
                                 if not isinstance(source_contents, bytes):
                                     raise RuntimeError("A retained PiyoLog source file is missing.")
-                                if hashlib.sha256(source_contents).hexdigest() != row.get(
-                                    "source_hash"
-                                ):
+                                try:
+                                    parsed_source = parse_piyolog(source_contents)
+                                except Exception as exc:
+                                    raise RuntimeError(
+                                        "A retained PiyoLog source is not valid import text."
+                                    ) from exc
+                                if parsed_source.source_hash != row.get("source_hash"):
                                     raise RuntimeError(
                                         "A retained PiyoLog source does not match its import."
                                     )

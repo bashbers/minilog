@@ -2,15 +2,17 @@ import asyncio
 import io
 import logging
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import httpx2 as httpx
+from conftest import TEST_DATABASE
 from PIL import Image
 from sqlalchemy import func, select, text
 
 from minilog.api import health
-from minilog.database import Base, SessionLocal, get_db
+from minilog.database import Base, SessionLocal, engine, get_db
 from minilog.main import app
 from minilog.models import (
     AuthSession,
@@ -64,6 +66,16 @@ def record_payload(baby_id: str, record_type: str, **details: Any) -> dict[str, 
         "local_offset_minutes": 120,
         **details,
     }
+
+
+def assert_live_database_erased(*private_markers: str) -> None:
+    engine.dispose()
+    for path in (TEST_DATABASE, Path(f"{TEST_DATABASE}-wal"), Path(f"{TEST_DATABASE}-shm")):
+        if not path.exists():
+            continue
+        contents = path.read_bytes()
+        for marker in private_markers:
+            assert marker.encode() not in contents, (path, marker)
 
 
 def test_setup_session_and_owner_only_baby_creation() -> None:
@@ -246,6 +258,30 @@ def test_every_native_record_type_round_trips() -> None:
         assert solid_food["details"]["reaction_note"] == "No reaction observed"
         sync = (await client.get("/api/v1/sync")).json()
         assert len(sync["changes"]) == len(cases)
+
+        overlapping = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json=record_payload(
+                baby_id,
+                "breastfeeding",
+                occurred_at="2026-09-09T14:00:00+02:00",
+                ended_at="2026-09-09T15:00:00+02:00",
+                intervals=[
+                    {
+                        "side": "left",
+                        "started_at": "2026-09-09T14:00:00+02:00",
+                        "ended_at": "2026-09-09T14:40:00+02:00",
+                    },
+                    {
+                        "side": "right",
+                        "started_at": "2026-09-09T14:30:00+02:00",
+                        "ended_at": "2026-09-09T15:00:00+02:00",
+                    },
+                ],
+            ),
+        )
+        assert overlapping.status_code == 422
 
     asyncio.run(with_client(scenario))
 
@@ -548,6 +584,7 @@ def test_profile_picture_is_normalized_to_webp() -> None:
         picture = await client.get(f"/api/v1/babies/{baby_id}/profile-picture")
         assert picture.status_code == 200
         assert picture.headers["content-type"] == "image/webp"
+        assert picture.headers["cache-control"] == "private, no-store"
         with Image.open(io.BytesIO(picture.content)) as normalized:
             assert normalized.size == (256, 256)
             assert normalized.format == "WEBP"
@@ -608,6 +645,8 @@ def test_invitation_is_one_time_and_device_revocation_is_scoped() -> None:
 
 def test_inactive_caregiver_identity_can_be_erased_without_losing_history() -> None:
     async def scenario(owner_client: httpx.AsyncClient) -> None:
+        private_username = "erasure-private-marker"
+        private_display_name = "ERASURE_PRIVATE_MARKER"
         csrf = await setup_owner(owner_client)
         baby_id = await create_baby(owner_client, csrf)
         invitation = await owner_client.post(
@@ -623,8 +662,8 @@ def test_inactive_caregiver_identity_can_be_erased_without_losing_history() -> N
                 "/api/v1/invitations/accept",
                 json={
                     "token": token,
-                    "username": "private-caregiver",
-                    "display_name": "Private Name",
+                    "username": private_username,
+                    "display_name": private_display_name,
                     "password": "another long test passphrase",
                 },
             )
@@ -701,6 +740,7 @@ def test_inactive_caregiver_identity_can_be_erased_without_losing_history() -> N
         assert deleted["identity_erased_at"] is not None
         history = await owner_client.get(f"/api/v1/care-records/{record_id}")
         assert history.json()["author_label"] == "Deleted caregiver"
+        assert_live_database_erased(private_username, private_display_name)
 
     asyncio.run(with_client(scenario))
 
@@ -770,13 +810,15 @@ def test_quick_action_preferences_are_ordered_hidden_and_extensible() -> None:
 
 def test_destructive_deletion_requires_exact_confirmation() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
+        baby_private_marker = "BABY_PRIVATE_MARKER_7ED019"
+        household_private_marker = "HOUSEHOLD_PRIVATE_MARKER_963BC1"
         csrf = await setup_owner(client)
         baby_id = await create_baby(client, csrf)
         mutation_id = str(uuid4())
         record = await client.post(
             "/api/v1/care-records",
             headers={"X-CSRF-Token": csrf, "X-Mutation-ID": mutation_id},
-            json=record_payload(baby_id, "note", body="Private deletion test note"),
+            json=record_payload(baby_id, "note", body=baby_private_marker),
         )
         assert record.status_code == 201, record.text
 
@@ -793,7 +835,7 @@ def test_destructive_deletion_requires_exact_confirmation() -> None:
 September 8, 2026
 07:00 Sleep
 08:15 Wake up
-Diary: Private imported note
+Diary: BABY_PRIVATE_MARKER_7ED019 imported note
 """
         imported = await client.post(
             "/api/v1/imports/piyolog/confirm",
@@ -847,6 +889,15 @@ Diary: Private imported note
                 table = Base.metadata.tables[table_name]
                 count = db.scalar(select(func.count()).select_from(table))
                 assert count == 0, table_name
+        assert_live_database_erased(baby_private_marker)
+
+        remaining_baby_id = await create_baby(client, csrf)
+        remaining_record = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json=record_payload(remaining_baby_id, "note", body=household_private_marker),
+        )
+        assert remaining_record.status_code == 201, remaining_record.text
 
         household_denied = await client.request(
             "DELETE",
@@ -867,6 +918,7 @@ Diary: Private imported note
             for table in Base.metadata.sorted_tables:
                 count = db.scalar(select(func.count()).select_from(table))
                 assert count == 0, table.name
+        assert_live_database_erased(household_private_marker)
 
     asyncio.run(with_client(scenario))
 

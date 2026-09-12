@@ -119,19 +119,31 @@ export async function setSyncCursor(cursor: number) {
 }
 
 export async function clearLocalData() {
-  const db = await database;
-  await Promise.all([db.clear("pending"), db.clear("cache"), db.clear("meta")]);
-  if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
+  await Promise.allSettled([
+    (async () => {
+      const db = await database;
+      await Promise.all([db.clear("pending"), db.clear("cache"), db.clear("meta")]);
+    })(),
+    (async () => {
+      if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
+    })(),
+  ]);
 }
 
 export async function clearBabyLocalData(babyId: string) {
-  const db = await database;
-  const pending = await db.getAll("pending");
-  await Promise.all([
-    ...pending
-      .filter((item) => item.payload.baby_id === babyId)
-      .map((item) => db.delete("pending", item.mutationId)),
-    db.delete("cache", `records:${babyId}`),
+  await Promise.allSettled([
+    (async () => {
+      const db = await database;
+      const pending = await db.getAll("pending");
+      await Promise.all([
+        ...pending
+          .filter((item) => item.payload.baby_id === babyId)
+          .map((item) => db.delete("pending", item.mutationId)),
+        db.delete("cache", `records:${babyId}`),
+      ]);
+    })(),
+    (async () => {
+      if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
+    })(),
   ]);
-  if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
 }

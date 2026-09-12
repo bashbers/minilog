@@ -1,6 +1,7 @@
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
+from minilog.database import commit_private_changes
 from minilog.models import (
     AuthSession,
     Baby,
@@ -84,7 +85,7 @@ def permanently_delete_baby(
         )
     )
     db.delete(baby)
-    db.commit()
+    commit_private_changes(db)
 
 
 def permanently_delete_household(db: Session, confirmation: str) -> None:
@@ -109,7 +110,7 @@ def permanently_delete_household(db: Session, confirmation: str) -> None:
         Household,
     ):
         db.execute(delete(model))
-    db.commit()
+    commit_private_changes(db)
 
 
 def deactivate_caregiver(db: Session, caregiver_id: str, current_owner_id: str) -> None:
@@ -184,4 +185,4 @@ def erase_caregiver_identity(db: Session, caregiver_id: str, current_owner_id: s
     caregiver.password_hash = hash_password(new_token())
     caregiver.identity_erased_at = changed_at
     caregiver.updated_at = changed_at
-    db.commit()
+    commit_private_changes(db)
