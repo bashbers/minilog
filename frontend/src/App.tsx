@@ -77,10 +77,10 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("selectedBaby"));
   const [quickAdd, setQuickAdd] = useState(false);
   const queryClient = useQueryClient();
-  const refreshProfilePicture = () => Promise.allSettled([
-    clearProfilePictureCache(),
-    queryClient.invalidateQueries({ queryKey: ["babies"] }),
-  ]);
+  const refreshProfilePicture = async () => {
+    await clearProfilePictureCache().catch(() => undefined);
+    await queryClient.invalidateQueries({ queryKey: ["babies"] });
+  };
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: async () => {

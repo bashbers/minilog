@@ -4,6 +4,8 @@ set -eu
 image="mcr.microsoft.com/playwright:v1.63.0-noble"
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 
+pnpm build
+
 node_modules/.bin/playwright test \
   --project=mobile-chromium \
   --project=desktop-chromium \

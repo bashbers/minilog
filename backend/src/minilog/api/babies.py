@@ -1,5 +1,6 @@
 import hashlib
 import io
+import warnings
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
@@ -90,18 +91,28 @@ async def set_profile_picture(
     if len(raw) > settings.max_profile_picture_bytes:
         raise HTTPException(status_code=413, detail="profile_picture_too_large")
     try:
-        with Image.open(io.BytesIO(raw)) as source:
-            source.load()
-            if source.format not in {"JPEG", "PNG", "WEBP"}:
-                raise HTTPException(status_code=415, detail="unsupported_picture_type")
-            oriented = ImageOps.exif_transpose(source).convert("RGB")
-            size = min(oriented.size)
-            left = (oriented.width - size) // 2
-            top = (oriented.height - size) // 2
-            square = oriented.crop((left, top, left + size, top + size)).resize((256, 256))
-            output = io.BytesIO()
-            square.save(output, format="WEBP", quality=85, method=6)
-            derivative = output.getvalue()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(raw)) as source:
+                if source.format not in {"JPEG", "PNG", "WEBP"}:
+                    raise HTTPException(status_code=415, detail="unsupported_picture_type")
+                if source.width * source.height > settings.max_profile_picture_pixels:
+                    raise HTTPException(
+                        status_code=413, detail="profile_picture_dimensions_too_large"
+                    )
+                source.load()
+                oriented = ImageOps.exif_transpose(source).convert("RGB")
+                size = min(oriented.size)
+                left = (oriented.width - size) // 2
+                top = (oriented.height - size) // 2
+                square = oriented.crop((left, top, left + size, top + size)).resize((256, 256))
+                output = io.BytesIO()
+                square.save(output, format="WEBP", quality=85, method=6)
+                derivative = output.getvalue()
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise HTTPException(
+            status_code=413, detail="profile_picture_dimensions_too_large"
+        ) from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=415, detail="invalid_profile_picture") from exc
 

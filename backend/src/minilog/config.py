@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     sync_tombstone_days: int = Field(default=30, ge=7, le=365)
     max_import_bytes: int = Field(default=10_000_000, ge=100_000)
     max_profile_picture_bytes: int = Field(default=8_000_000, ge=100_000)
+    max_profile_picture_pixels: int = Field(default=16_000_000, ge=65_536)
     login_attempt_limit: int = Field(default=8, ge=3, le=100)
     login_attempt_window_seconds: int = Field(default=300, ge=30, le=3600)
 

@@ -2,7 +2,7 @@ import fcntl
 import logging
 import os
 from collections.abc import AsyncGenerator, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import MetaData, create_engine, event, text
@@ -83,40 +83,47 @@ def private_database_changes(session: Session) -> Iterator[None]:
     # enter with no pending work, so close that read boundary before acquiring database locks.
     session.rollback()
     with database_file_lock(database_path, exclusive=True):
-        try:
-            session.execute(text("PRAGMA locking_mode=EXCLUSIVE"))
-            session.execute(text("BEGIN EXCLUSIVE"))
-        except OperationalError as exc:
-            session.rollback()
-            with suppress(OperationalError):
-                session.execute(text("PRAGMA locking_mode=NORMAL"))
-                session.commit()
-            raise PrivateDatabaseBusyError(
-                "Private database maintenance could not obtain exclusive access."
-            ) from exc
-
+        original_bind = session.bind
+        exclusive_connection = engine.connect()
+        session.bind = exclusive_connection
         try:
             try:
-                yield
-                session.commit()
-            except Exception:
+                session.execute(text("PRAGMA locking_mode=EXCLUSIVE"))
+                session.execute(text("BEGIN EXCLUSIVE"))
+            except OperationalError as exc:
                 session.rollback()
-                raise
+                raise PrivateDatabaseBusyError(
+                    "Private database maintenance could not obtain exclusive access."
+                ) from exc
+
             try:
-                busy, _remaining, _checkpointed = session.execute(
-                    text("PRAGMA wal_checkpoint(TRUNCATE)")
-                ).one()
-                session.commit()
-                if busy:
-                    logger.critical("private database WAL truncation unexpectedly remained busy")
-            except Exception:
-                # The mutation is already durable. Never turn a committed destructive request
-                # into a reported failure that invites an unsafe retry.
-                logger.exception("private database WAL truncation failed after commit")
+                try:
+                    yield
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    raise
+                try:
+                    busy, _remaining, _checkpointed = session.execute(
+                        text("PRAGMA wal_checkpoint(TRUNCATE)")
+                    ).one()
+                    session.commit()
+                    if busy:
+                        logger.critical(
+                            "private database WAL truncation unexpectedly remained busy"
+                        )
+                except Exception:
+                    # The mutation is already durable. Never turn a committed destructive request
+                    # into a reported failure that invites an unsafe retry.
+                    logger.exception("private database WAL truncation failed after commit")
+            finally:
+                session.close()
         finally:
-            with suppress(Exception):
-                session.execute(text("PRAGMA locking_mode=NORMAL"))
-                session.commit()
+            session.bind = original_bind
+            # SQLite cannot leave EXCLUSIVE locking mode while WAL is active. Destroy this
+            # connection instead of returning its permanently-exclusive handle to the pool.
+            exclusive_connection.invalidate()
+            exclusive_connection.close()
 
 
 async def get_db() -> AsyncGenerator[Session, None]:

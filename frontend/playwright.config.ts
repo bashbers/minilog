@@ -17,7 +17,7 @@ export default defineConfig({
     { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
   ],
   webServer: {
-    command: "node_modules/.bin/vite --host 127.0.0.1 --port 4173",
+    command: "node scripts/e2e-server.mjs",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
   },

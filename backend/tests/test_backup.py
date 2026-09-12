@@ -180,6 +180,23 @@ def test_private_deletion_fails_before_commit_when_a_reader_prevents_exclusivity
         assert verification.get(Baby, baby_id) is not None
 
 
+def test_private_deletion_releases_exclusive_connection_for_queries_and_backup(tmp_path) -> None:
+    with SessionLocal() as setup:
+        baby = Baby(display_name="Delete me", birth_date="2026-01-01")
+        setup.add(baby)
+        setup.commit()
+        baby_id = baby.id
+
+    with SessionLocal() as deleting:
+        permanently_delete_baby(deleting, baby_id, "Delete me", True)
+
+    database_path = cli.configured_database_path()
+    with sqlite3.connect(database_path, timeout=0.1) as independent:
+        assert independent.execute("SELECT COUNT(*) FROM babies").fetchone() == (0,)
+    snapshot = backup_database(database_path, tmp_path / "after-private-change.sqlite3")
+    verify_database(snapshot)
+
+
 def test_sigterm_during_migration_restores_snapshot(tmp_path) -> None:
     live = tmp_path / "minilog.sqlite3"
     ready = tmp_path / "migration-started"

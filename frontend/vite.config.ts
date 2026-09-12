@@ -13,7 +13,7 @@ export default defineConfig({
         navigateFallback: "/index.html",
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/v1\/babies\/[^/]+\/profile-picture$/,
+            urlPattern: ({ url }) => /^\/api\/v1\/babies\/[^/]+\/profile-picture$/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "minilog-profile-pictures",
