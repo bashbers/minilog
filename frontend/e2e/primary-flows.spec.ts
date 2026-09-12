@@ -82,6 +82,15 @@ async function mockApi(page: Page) {
   let profilePictureVersion = 1;
   let profilePictureColor = "#f0a07a";
   let caregiverIdentityErased = false;
+  await page.exposeFunction("simulateRemotePictureUpdate", () => {
+    hasProfilePicture = true;
+    profilePictureVersion += 1;
+    profilePictureColor = "#7f5af0";
+  });
+  await page.exposeFunction("simulateRemotePictureRemoval", () => {
+    hasProfilePicture = false;
+    profilePictureVersion += 1;
+  });
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -217,7 +226,10 @@ test("quick actions and record editing remain accessible on phone and desktop", 
     const response = await fetch((element as HTMLImageElement).src);
     return response.text();
   })).toContain("#216869");
-  await expect.poll(() => page.evaluate(async () => caches.has("minilog-profile-pictures"))).toBe(false);
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([]);
   const replacementPictureUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
   await page.evaluate(async (url) => {
     const cache = await caches.open("minilog-profile-pictures");
@@ -228,7 +240,10 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   await removePicture.click();
   await expect(removePicture).toHaveCount(0);
   await expect(picture).toHaveCount(0);
-  await expect.poll(() => page.evaluate(async () => caches.has("minilog-profile-pictures"))).toBe(false);
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([]);
   await expectAccessible(page);
   const noahActive = page.getByRole("button", { name: "Noah 1 active" });
   await expect(noahActive).toBeVisible();
@@ -295,6 +310,43 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   });
   expect(reducedAnimationSeconds).toBeLessThanOrEqual(0.00001);
   await expectAccessible(page);
+});
+
+test("visible Baby polling reconciles remote profile changes and removal", async ({ page }) => {
+  test.setTimeout(25_000);
+  await page.goto("/");
+  const picture = page.locator("img.baby-picture");
+  await expect(picture).toHaveAttribute("src", new RegExp(`${babyId}/profile-picture\\?v=1$`));
+  const originalUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
+  await page.evaluate(async (url) => {
+    const cache = await caches.open("minilog-profile-pictures");
+    await cache.put(url, new Response("old-version"));
+    await (window as unknown as { simulateRemotePictureUpdate: () => Promise<void> })
+      .simulateRemotePictureUpdate();
+  }, originalUrl);
+
+  await expect(picture).toHaveAttribute(
+    "src",
+    new RegExp(`${babyId}/profile-picture\\?v=2$`),
+    { timeout: 7_000 },
+  );
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([]);
+
+  const currentUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
+  await page.evaluate(async (url) => {
+    const cache = await caches.open("minilog-profile-pictures");
+    await cache.put(url, new Response("current-version"));
+    await (window as unknown as { simulateRemotePictureRemoval: () => Promise<void> })
+      .simulateRemotePictureRemoval();
+  }, currentUrl);
+  await expect(picture).toHaveCount(0, { timeout: 7_000 });
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([]);
 });
 
 test("History filters every care type and loads an equal-timestamp-safe cursor", async ({ page }) => {

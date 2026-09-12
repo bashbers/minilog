@@ -67,7 +67,11 @@ function VersionMismatchScreen() {
 
 function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   useForegroundSync();
-  const babies = useQuery({ queryKey: ["babies"], queryFn: api.babies });
+  const babies = useQuery({
+    queryKey: ["babies"],
+    queryFn: api.babies,
+    refetchInterval: 5_000,
+  });
   const household = useQuery({ queryKey: ["household"], queryFn: api.household });
   const activeStatuses = useQuery({
     queryKey: ["baby-active-statuses"],
