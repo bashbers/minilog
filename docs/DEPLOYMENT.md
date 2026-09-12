@@ -1,6 +1,33 @@
 # Deployment contract
 
-This document defines the deployment the implementation must provide. Exact image names and commands will be filled in when code exists.
+This document is the operator runbook for the source-distributed Minilog release.
+
+## Prerequisites and installation
+
+Use a Linux host with either Docker Engine plus Compose v2 or Podman plus a Compose provider. The host filesystem holding the named volume must support normal SQLite file locks; do not place it on NFS, SMB, or another network filesystem.
+
+From a checked-out Minilog release:
+
+```sh
+cp .env.example .env
+chmod 600 .env
+openssl rand -base64 32
+```
+
+Put the generated value in `.env` as `MINILOG_SETUP_TOKEN`. Set `MINILOG_PUBLIC_ORIGIN` to the exact origin caregivers will open, including a non-default port, and set the Household time zone. Then build and start both services:
+
+```sh
+docker compose up --build -d
+docker compose ps
+```
+
+Podman users substitute `podman compose` in this entire guide. Wait for both services to report healthy, then open the configured origin. On the first screen, enter the setup token and create the Owner. Immediately clear `MINILOG_SETUP_TOKEN` in `.env` and recreate the API service:
+
+```sh
+docker compose up -d --force-recreate api
+```
+
+The token is not logged or persisted by Minilog. Keep `.env` out of backups that are shared with others. Do not expose an unclaimed installation to the internet.
 
 ## Compose services
 
@@ -53,6 +80,32 @@ Compose exposes local HTTP for a trusted network. For access away from home, the
 
 Minilog does not provision DNS, certificates, port forwarding, or a hosted relay. Proxy examples must preserve the same origin for the PWA and `/api` and must not add analytics or remote assets.
 
+Browser installation and service workers require a secure context. `http://localhost` qualifies, but a phone opening a plain LAN address such as `http://192.168.x.x:8080` generally does not. Plain LAN HTTP remains suitable for temporary testing, not for relying on offline creation or installation.
+
+### HTTPS reverse proxy example
+
+Bind Minilog to the host loopback interface by setting this additional value in `.env`:
+
+```dotenv
+MINILOG_PORT=127.0.0.1:8080
+MINILOG_PUBLIC_ORIGIN=https://minilog.example.com
+MINILOG_SECURE_COOKIES=true
+```
+
+A host-managed Caddy instance can terminate TLS and forward the whole origin without splitting the API onto another domain:
+
+```caddyfile
+minilog.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Use a valid certificate and restrict DNS/firewall exposure to the intended caregivers. Minilog deliberately starts Uvicorn with proxy-header trust disabled; security decisions do not depend on client-supplied forwarded headers. The configured `MINILOG_PUBLIC_ORIGIN` is the canonical browser boundary.
+
+### Private VPN
+
+Alternatively, connect caregivers to the home network with an operator-managed WireGuard-compatible VPN. Bind `MINILOG_PORT` to the VPN interface address or restrict port 8080 to that interface with the host firewall. HTTPS is still recommended for consistent PWA behavior; the VPN protects transport but does not automatically make a non-local HTTP URL a browser secure context.
+
 ## Data directory
 
 The data volume contains the SQLite database and application-managed recovery artifacts. SQLite runs with foreign keys, secure deletion, WAL, and a bounded busy timeout. Online backups take a shared maintenance lock; privacy-sensitive mutations take the matching exclusive lock and establish SQLite exclusivity before changing data. Permanent application deletions truncate checkpointed WAL pages before reporting success, and a competing unmanaged reader causes a retryable response before the change commits. The API is the sole database owner; operators do not mount the live database into unrelated containers.
@@ -79,20 +132,22 @@ Restore is an explicit offline maintenance operation:
 
 No restore overwrites the sole current database before a validated recovery copy exists. Scheduled backups and retention automation are deferred.
 
-After stopping the API, restore a selected snapshot with a pre-restore recovery copy:
+Copy the printed backup file out of the named volume to encrypted, independently managed storage. To restore a selected snapshot, bind-mount the directory containing it read-only into the one-off container. Use an absolute host path in place of `/srv/private/minilog-recovery`:
 
 ```sh
 docker compose stop api
-docker compose run --rm api minilog-restore --confirm-offline /data/backups/minilog-YYYYMMDDTHHMMSSZ.sqlite3
+docker compose run --rm -v /srv/private/minilog-recovery:/restore:ro api minilog-restore --confirm-offline /restore/minilog-YYYYMMDDTHHMMSSZ.sqlite3
 docker compose up -d api web
+docker compose ps
 ```
 
 A lossless Minilog ZIP export can be restored through the same offline safety path:
 
 ```sh
 docker compose stop api
-docker compose run --rm api minilog-restore-export --confirm-offline /data/import/minilog-export.zip
+docker compose run --rm -v /srv/private/minilog-recovery:/restore:ro api minilog-restore-export --confirm-offline /restore/minilog-export.zip
 docker compose up -d api web
+docker compose ps
 ```
 
 The archive is fully checksum-validated, must match the running database revision, and still causes a verified pre-restore SQLite recovery copy to be made.
@@ -124,6 +179,19 @@ Images use explicit versions; automatic unattended application updates are not e
 
 Migration failure restores the verified snapshot before the container exits and leaves only a sanitized exception class in the lifecycle diagnostic. A failed first migration removes its incomplete database. The frontend polls the compatibility endpoint and shows maintenance or version-mismatch state rather than running against an incompatible contract.
 
+For the source-distributed release, upgrade from a clean checkout while preserving the existing `.env` and named volume:
+
+```sh
+docker compose exec api minilog-backup
+git fetch --tags
+git checkout <reviewed-release-tag>
+docker compose build --pull
+docker compose up -d
+docker compose ps
+```
+
+Read the release notes before choosing the tag. Do not run `docker compose down --volumes` during an upgrade. Startup takes and verifies an additional pre-migration snapshot automatically whenever the schema revision changes. If the API fails to become healthy, leave it stopped, inspect the sanitized lifecycle log, and follow the offline restore procedure above.
+
 ## Recovery and lockout
 
 A local API-container command can reset the Owner password or issue a new controlled recovery token. It requires direct server access, revokes sessions, never prints stored data, and is covered by recovery tests.
@@ -138,3 +206,34 @@ docker compose exec api minilog-reset-owner
 - Readiness checks expected schema, writable local storage, and a basic database query without exposing Household details.
 - Logs follow [SECURITY.md](./SECURITY.md).
 - No container requires outbound network access at runtime.
+
+The production web response should include Content Security Policy, Permissions Policy, MIME-sniffing, framing, referrer, and cross-origin isolation headers. Verify the same origin and API proxy after installation:
+
+```sh
+curl -fsSI http://127.0.0.1:8080/
+curl -fsS http://127.0.0.1:8080/api/v1/health/ready
+```
+
+The readiness response contains no Household data. API access logs are disabled at the server; Minilog emits only allowlisted structured request and lifecycle fields described in [SECURITY.md](./SECURITY.md).
+
+## Removing Minilog
+
+First create and copy out any export or backup the Household wants to keep. Then stop the stack. The following final command permanently removes the named data volume and all live Minilog data on this host:
+
+```sh
+docker compose down
+docker compose down --volumes
+```
+
+This does not erase copies already placed in backups, exports, filesystem snapshots, browser storage on other devices, or storage media remapping. Remove those separately according to the operator's retention policy.
+
+## Known deployment limitations
+
+- One API process and one SQLite database are supported; do not scale the API service or share its volume.
+- Network filesystems, Kubernetes replicas, active-active failover, and unattended automatic upgrades are unsupported.
+- Minilog does not manage DNS, certificates, VPN accounts, host encryption, firewalls, off-host backup retention, or monitoring.
+- Application data is not encrypted inside SQLite. Use encrypted host storage and encrypt every exported copy.
+- Plain LAN HTTP is not a dependable installable/offline PWA origin on phones.
+- Browser and filesystem deletion cannot guarantee erasure from device snapshots, flash wear-leveling, or copies outside Minilog's control.
+
+The release verification matrix is maintained in [RELEASE-CHECKLIST.md](./RELEASE-CHECKLIST.md).

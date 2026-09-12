@@ -4,9 +4,9 @@ Minilog is a privacy-first, self-hosted baby-care log designed for fast, one-han
 
 It records breastfeeding, bottles, solid food, sleep, diapers, pumping, measurements, medication administrations, and notes. It also provides shared household accounts, foreground synchronization, offline creation, seven-day charts, profile pictures, English/Japanese PiyoLog text migration, and checked data export and recovery.
 
-## Quick start with Docker Compose
+## Quick start with Compose
 
-Docker Engine with Compose v2 is the only runtime prerequisite.
+Linux with Docker Engine and Compose v2, or Podman with a Compose provider, is the only runtime prerequisite. Copy `.env.example` to `.env`, keep that file private, and generate a one-time setup token:
 
 ```sh
 cp .env.example .env
@@ -20,6 +20,8 @@ docker compose up --build -d
 ```
 
 Open `http://localhost:8080`, enter the setup token, and create the first Owner. The SQLite database and application-managed recovery artifacts live only in the `minilog-data` volume.
+
+Podman users can substitute `podman compose` for every `docker compose` command. Local-network HTTP is useful for initial testing, but browsers generally require HTTPS (or `localhost`) for installation, service workers, and reliable offline behavior. Use the HTTPS or private-VPN deployment described in [Deployment](./docs/DEPLOYMENT.md) before relying on the PWA from a phone.
 
 After the first Owner exists, clear `MINILOG_SETUP_TOKEN` in `.env` and recreate the API container. Setup stays disabled by the database state; the token is no longer needed or logged.
 
