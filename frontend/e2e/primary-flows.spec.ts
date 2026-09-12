@@ -79,6 +79,8 @@ const futureRecord = {
 async function mockApi(page: Page) {
   let recordDeleted = false;
   let hasProfilePicture = true;
+  let profilePictureVersion = 1;
+  let profilePictureColor = "#f0a07a";
   let caregiverIdentityErased = false;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -99,19 +101,26 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/babies") {
       return json([
-        { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: hasProfilePicture, updated_at: 1 },
+        { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: hasProfilePicture, updated_at: profilePictureVersion },
         { id: secondBabyId, display_name: "Noah", birth_date: "2025-01-01", due_date: null, has_profile_picture: false, updated_at: 1 },
       ]);
     }
     if (path === `/api/v1/babies/${babyId}/profile-picture`) {
+      if (request.method() === "PUT") {
+        hasProfilePicture = true;
+        profilePictureVersion += 1;
+        profilePictureColor = "#216869";
+        return route.fulfill({ status: 204, body: "" });
+      }
       if (request.method() === "DELETE") {
         hasProfilePicture = false;
+        profilePictureVersion += 1;
         return route.fulfill({ status: 204, body: "" });
       }
       return route.fulfill({
         status: 200,
         contentType: "image/svg+xml",
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+        body: `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="${profilePictureColor}"/></svg>`,
       });
     }
     if (path === "/api/v1/care-records/active-status") return json([{ baby_id: secondBabyId, active_types: ["sleep"] }]);
@@ -191,10 +200,35 @@ test("quick actions and record editing remain accessible on phone and desktop", 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sleep" })).toBeVisible();
   await expect(page.getByText("Future care")).toHaveCount(0);
+  const picture = page.locator("img.baby-picture");
+  await expect(picture).toHaveAttribute("src", new RegExp(`${babyId}/profile-picture\\?v=1$`));
+  const originalPictureUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
+  await page.evaluate(async (url) => {
+    const cache = await caches.open("minilog-profile-pictures");
+    await cache.put(url, new Response("old-profile-picture"));
+  }, originalPictureUrl);
+  await page.getByLabel("Change profile picture").setInputFiles({
+    name: "replacement.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("replacement-profile-picture"),
+  });
+  await expect(picture).toHaveAttribute("src", new RegExp(`${babyId}/profile-picture\\?v=2$`));
+  await expect.poll(() => picture.evaluate(async (element) => {
+    const response = await fetch((element as HTMLImageElement).src);
+    return response.text();
+  })).toContain("#216869");
+  await expect.poll(() => page.evaluate(async () => caches.has("minilog-profile-pictures"))).toBe(false);
+  const replacementPictureUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
+  await page.evaluate(async (url) => {
+    const cache = await caches.open("minilog-profile-pictures");
+    await cache.put(url, new Response("replacement-profile-picture"));
+  }, replacementPictureUrl);
   const removePicture = page.getByRole("button", { name: "Remove profile picture" });
   await expect(removePicture).toBeVisible();
   await removePicture.click();
   await expect(removePicture).toHaveCount(0);
+  await expect(picture).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => caches.has("minilog-profile-pictures"))).toBe(false);
   await expectAccessible(page);
   const noahActive = page.getByRole("button", { name: "Noah 1 active" });
   await expect(noahActive).toBeVisible();

@@ -2,7 +2,7 @@ import { vi } from "vitest";
 
 import { api, ApiError } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
-import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
+import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, clearProfilePictureCache, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
 
 test("persists offline creations by baby until synchronization", async () => {
   await clearLocalData();
@@ -110,6 +110,16 @@ test("Baby deletion cleanup continues when browser Cache Storage rejects deletio
   await expect(clearBabyLocalData(babyId)).resolves.toBeUndefined();
   expect(await pendingForBaby(babyId)).toEqual([]);
   expect(await cachedRecords(babyId)).toBeUndefined();
+  vi.unstubAllGlobals();
+});
+
+test("profile picture changes remove every version from the managed runtime cache", async () => {
+  const deletePictureCache = vi.fn().mockResolvedValue(true);
+  vi.stubGlobal("caches", { delete: deletePictureCache });
+
+  await clearProfilePictureCache();
+
+  expect(deletePictureCache).toHaveBeenCalledExactlyOnceWith("minilog-profile-pictures");
   vi.unstubAllGlobals();
 });
 

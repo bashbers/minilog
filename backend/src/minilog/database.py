@@ -1,8 +1,13 @@
-from collections.abc import AsyncGenerator
+import fcntl
+import logging
+import os
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from sqlalchemy import MetaData, create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from minilog.config import get_settings
@@ -21,8 +26,10 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
+logger = logging.getLogger("minilog.database")
 
 database_url = make_url(settings.database_url)
+database_path: Path | None = None
 if (
     database_url.get_backend_name() == "sqlite"
     and database_url.database
@@ -49,14 +56,67 @@ def configure_sqlite(dbapi_connection: object, _connection_record: object) -> No
     cursor.close()
 
 
-def commit_private_changes(session: Session) -> None:
-    session.commit()
-    busy, _remaining, _checkpointed = session.execute(
-        text("PRAGMA wal_checkpoint(TRUNCATE)")
-    ).one()
-    session.commit()
-    if busy:
-        raise RuntimeError("SQLite could not truncate private WAL residue.")
+class PrivateDatabaseBusyError(RuntimeError):
+    pass
+
+
+@contextmanager
+def database_file_lock(path: Path, *, exclusive: bool) -> Iterator[None]:
+    """Coordinate online snapshots and privacy-sensitive database mutations."""
+    lock_path = path.resolve().with_name(f".{path.name}.lock")
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+@contextmanager
+def private_database_changes(session: Session) -> Iterator[None]:
+    """Commit and scrub a sensitive mutation without post-commit failure reporting."""
+    if database_path is None:
+        raise RuntimeError("Private database changes require file-backed SQLite storage.")
+
+    # Authentication reads may have opened a logical SQLAlchemy transaction. Private commands
+    # enter with no pending work, so close that read boundary before acquiring database locks.
+    session.rollback()
+    with database_file_lock(database_path, exclusive=True):
+        try:
+            session.execute(text("PRAGMA locking_mode=EXCLUSIVE"))
+            session.execute(text("BEGIN EXCLUSIVE"))
+        except OperationalError as exc:
+            session.rollback()
+            with suppress(OperationalError):
+                session.execute(text("PRAGMA locking_mode=NORMAL"))
+                session.commit()
+            raise PrivateDatabaseBusyError(
+                "Private database maintenance could not obtain exclusive access."
+            ) from exc
+
+        try:
+            try:
+                yield
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            try:
+                busy, _remaining, _checkpointed = session.execute(
+                    text("PRAGMA wal_checkpoint(TRUNCATE)")
+                ).one()
+                session.commit()
+                if busy:
+                    logger.critical("private database WAL truncation unexpectedly remained busy")
+            except Exception:
+                # The mutation is already durable. Never turn a committed destructive request
+                # into a reported failure that invites an unsafe retry.
+                logger.exception("private database WAL truncation failed after commit")
+        finally:
+            with suppress(Exception):
+                session.execute(text("PRAGMA locking_mode=NORMAL"))
+                session.commit()
 
 
 async def get_db() -> AsyncGenerator[Session, None]:

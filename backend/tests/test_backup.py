@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from sqlalchemy import text
 
 import minilog.cli as cli
 from minilog.cli import (
@@ -22,6 +23,9 @@ from minilog.cli import (
     verify_database_writable,
 )
 from minilog.constants import SCHEMA_REVISION
+from minilog.database import PrivateDatabaseBusyError, SessionLocal
+from minilog.models import Baby
+from minilog.services.destructive import permanently_delete_baby
 
 
 def create_database(path, value: str, revision: str = "test-revision") -> None:
@@ -154,6 +158,26 @@ def test_maintenance_server_returns_retryable_503_for_writes() -> None:
             "api_contract_version": 1,
         },
     )
+
+
+def test_private_deletion_fails_before_commit_when_a_reader_prevents_exclusivity() -> None:
+    with SessionLocal() as setup:
+        baby = Baby(display_name="Private marker", birth_date="2026-01-01")
+        setup.add(baby)
+        setup.commit()
+        baby_id = baby.id
+
+    database_path = cli.configured_database_path()
+    with sqlite3.connect(database_path) as reader:
+        reader.execute("BEGIN")
+        reader.execute("SELECT display_name FROM babies").fetchall()
+        with SessionLocal() as deleting:
+            deleting.execute(text("PRAGMA busy_timeout=1"))
+            with pytest.raises(PrivateDatabaseBusyError, match="exclusive access"):
+                permanently_delete_baby(deleting, baby_id, "Private marker", True)
+
+    with SessionLocal() as verification:
+        assert verification.get(Baby, baby_id) is not None
 
 
 def test_sigterm_during_migration_restores_snapshot(tmp_path) -> None:

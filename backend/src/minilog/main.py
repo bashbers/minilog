@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from minilog.api.router import api_router
 from minilog.config import get_settings
+from minilog.database import PrivateDatabaseBusyError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("minilog")
@@ -107,6 +108,17 @@ app = FastAPI(
 )
 app.add_middleware(RequestContextMiddleware)
 app.include_router(api_router)
+
+
+@app.exception_handler(PrivateDatabaseBusyError)
+async def private_database_busy_handler(
+    _request: Request, _exc: PrivateDatabaseBusyError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "database_busy_retry"},
+        headers={"Retry-After": "1"},
+    )
 
 
 @app.get("/", include_in_schema=False)

@@ -571,6 +571,7 @@ def test_profile_picture_is_normalized_to_webp() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf = await setup_owner(client)
         baby_id = await create_baby(client, csrf)
+        original_version = (await client.get("/api/v1/babies")).json()[0]["updated_at"]
         source = io.BytesIO()
         Image.new("RGB", (640, 480), "#f0a07a").save(source, "JPEG")
 
@@ -588,6 +589,30 @@ def test_profile_picture_is_normalized_to_webp() -> None:
         with Image.open(io.BytesIO(picture.content)) as normalized:
             assert normalized.size == (256, 256)
             assert normalized.format == "WEBP"
+
+        uploaded_version = (await client.get("/api/v1/babies")).json()[0]["updated_at"]
+        assert uploaded_version > original_version
+        replacement = io.BytesIO()
+        Image.new("RGB", (480, 640), "#216869").save(replacement, "PNG")
+        replaced = await client.put(
+            f"/api/v1/babies/{baby_id}/profile-picture",
+            headers={"X-CSRF-Token": csrf},
+            files={"image": ("replacement.png", replacement.getvalue(), "image/png")},
+        )
+        assert replaced.status_code == 204, replaced.text
+        replacement_picture = await client.get(f"/api/v1/babies/{baby_id}/profile-picture")
+        assert replacement_picture.content != picture.content
+        replaced_version = (await client.get("/api/v1/babies")).json()[0]["updated_at"]
+        assert replaced_version > uploaded_version
+
+        removed = await client.delete(
+            f"/api/v1/babies/{baby_id}/profile-picture",
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert removed.status_code == 204, removed.text
+        baby = (await client.get("/api/v1/babies")).json()[0]
+        assert baby["has_profile_picture"] is False
+        assert baby["updated_at"] > replaced_version
 
     asyncio.run(with_client(scenario))
 

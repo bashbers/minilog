@@ -23,7 +23,7 @@ from sqlalchemy.engine import make_url
 from alembic import command
 from minilog.config import get_settings
 from minilog.constants import API_CONTRACT_VERSION, SCHEMA_REVISION
-from minilog.database import SessionLocal
+from minilog.database import SessionLocal, database_file_lock
 from minilog.models import AuthSession, Caregiver, CaregiverRole, now_ms
 from minilog.security import hash_password
 
@@ -103,7 +103,11 @@ def backup_database(database_path: Path, output_path: Path | None = None) -> Pat
     if temporary.exists():
         raise RuntimeError(f"Temporary backup path already exists: {temporary}")
     try:
-        with read_only_connection(database_path) as source, sqlite3.connect(temporary) as target:
+        with (
+            database_file_lock(database_path, exclusive=False),
+            read_only_connection(database_path) as source,
+            sqlite3.connect(temporary) as target,
+        ):
             source.backup(target)
         os.chmod(temporary, 0o600)
         verify_database(temporary)

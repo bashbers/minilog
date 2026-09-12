@@ -7,7 +7,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 
 from minilog.config import get_settings
-from minilog.database import commit_private_changes
+from minilog.database import private_database_changes
 from minilog.dependencies import CsrfProtected, CurrentCaregiver, Database, Owner
 from minilog.models import (
     Baby,
@@ -85,9 +85,6 @@ async def set_profile_picture(
     db: Database,
     image: Annotated[UploadFile, File()],
 ) -> None:
-    baby = db.get(Baby, baby_id)
-    if baby is None:
-        raise HTTPException(status_code=404, detail="baby_not_found")
     settings = get_settings()
     raw = await image.read(settings.max_profile_picture_bytes + 1)
     if len(raw) > settings.max_profile_picture_bytes:
@@ -108,21 +105,27 @@ async def set_profile_picture(
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=415, detail="invalid_profile_picture") from exc
 
-    picture = db.get(BabyProfilePicture, baby_id)
-    if picture is None:
-        picture = BabyProfilePicture(
-            baby_id=baby_id,
-            webp_bytes=derivative,
-            width=256,
-            height=256,
-            content_hash=hashlib.sha256(derivative).hexdigest(),
-        )
-        db.add(picture)
-    else:
-        picture.webp_bytes = derivative
-        picture.content_hash = hashlib.sha256(derivative).hexdigest()
-        picture.updated_at = now_ms()
-    commit_private_changes(db)
+    with private_database_changes(db):
+        baby = db.get(Baby, baby_id)
+        if baby is None:
+            raise HTTPException(status_code=404, detail="baby_not_found")
+        changed_at = max(now_ms(), baby.updated_at + 1)
+        picture = db.get(BabyProfilePicture, baby_id)
+        if picture is None:
+            picture = BabyProfilePicture(
+                baby_id=baby_id,
+                webp_bytes=derivative,
+                width=256,
+                height=256,
+                content_hash=hashlib.sha256(derivative).hexdigest(),
+                updated_at=changed_at,
+            )
+            db.add(picture)
+        else:
+            picture.webp_bytes = derivative
+            picture.content_hash = hashlib.sha256(derivative).hexdigest()
+            picture.updated_at = changed_at
+        baby.updated_at = changed_at
 
 
 @router.get("/babies/{baby_id}/profile-picture")
@@ -144,10 +147,14 @@ async def delete_profile_picture(
     _csrf: CsrfProtected,
     db: Database,
 ) -> None:
-    picture = db.get(BabyProfilePicture, baby_id)
-    if picture is not None:
-        db.delete(picture)
-        commit_private_changes(db)
+    with private_database_changes(db):
+        baby = db.get(Baby, baby_id)
+        if baby is None:
+            raise HTTPException(status_code=404, detail="baby_not_found")
+        picture = db.get(BabyProfilePicture, baby_id)
+        if picture is not None:
+            baby.updated_at = max(now_ms(), baby.updated_at + 1)
+            db.delete(picture)
 
 
 @router.delete("/babies/{baby_id}", status_code=status.HTTP_204_NO_CONTENT)

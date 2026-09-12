@@ -118,15 +118,17 @@ export async function setSyncCursor(cursor: number) {
   await db.put("meta", cursor, "syncCursor");
 }
 
+export async function clearProfilePictureCache() {
+  if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
+}
+
 export async function clearLocalData() {
   await Promise.allSettled([
     (async () => {
       const db = await database;
       await Promise.all([db.clear("pending"), db.clear("cache"), db.clear("meta")]);
     })(),
-    (async () => {
-      if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
-    })(),
+    clearProfilePictureCache(),
   ]);
 }
 
@@ -142,8 +144,6 @@ export async function clearBabyLocalData(babyId: string) {
         db.delete("cache", `records:${babyId}`),
       ]);
     })(),
-    (async () => {
-      if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
-    })(),
+    clearProfilePictureCache(),
   ]);
 }

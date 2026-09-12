@@ -55,7 +55,7 @@ Minilog does not provision DNS, certificates, port forwarding, or a hosted relay
 
 ## Data directory
 
-The data volume contains the SQLite database and application-managed recovery artifacts. SQLite runs with foreign keys, secure deletion, WAL, and a bounded busy timeout. Permanent application deletions truncate checkpointed WAL pages before reporting success. The API is the sole database owner; operators do not mount the live database into unrelated containers.
+The data volume contains the SQLite database and application-managed recovery artifacts. SQLite runs with foreign keys, secure deletion, WAL, and a bounded busy timeout. Online backups take a shared maintenance lock; privacy-sensitive mutations take the matching exclusive lock and establish SQLite exclusivity before changing data. Permanent application deletions truncate checkpointed WAL pages before reporting success, and a competing unmanaged reader causes a retryable response before the change commits. The API is the sole database owner; operators do not mount the live database into unrelated containers.
 
 ## Manual backup and restore
 

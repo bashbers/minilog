@@ -15,7 +15,7 @@ import { Trends } from "./components/Trends";
 import { useForegroundSync } from "./hooks/useForegroundSync";
 import { useRecords } from "./hooks/useRecords";
 import { dateKeyInTimeZone, shiftDateKey } from "./lib/time";
-import { clearLocalData } from "./offline/store";
+import { clearLocalData, clearProfilePictureCache } from "./offline/store";
 
 const EXPECTED_API_CONTRACT_VERSION = 1;
 
@@ -77,6 +77,10 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("selectedBaby"));
   const [quickAdd, setQuickAdd] = useState(false);
   const queryClient = useQueryClient();
+  const refreshProfilePicture = () => Promise.allSettled([
+    clearProfilePictureCache(),
+    queryClient.invalidateQueries({ queryKey: ["babies"] }),
+  ]);
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: async () => {
@@ -88,7 +92,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   });
   const removeProfilePicture = useMutation({
     mutationFn: api.deleteProfilePicture,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["babies"] }),
+    onSuccess: refreshProfilePicture,
   });
 
   useEffect(() => {
@@ -126,7 +130,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
           <label className="picture-upload" title="Change profile picture">
             <Upload aria-hidden="true" />
             <span className="sr-only">Change profile picture</span>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await queryClient.invalidateQueries({ queryKey: ["babies"] }); } }} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => { const file = event.target.files?.[0]; if (file) { await api.setProfilePicture(baby.id, file); await refreshProfilePicture(); } }} />
           </label>
           {baby.has_profile_picture && <button className="ghost icon-button" aria-label="Remove profile picture" disabled={removeProfilePicture.isPending} onClick={() => removeProfilePicture.mutate(baby.id)}><ImageOff /></button>}
           <NavLink className="ghost icon-button topbar-link" to="/settings" aria-label="Settings"><Settings /></NavLink>
