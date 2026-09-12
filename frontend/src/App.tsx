@@ -15,7 +15,7 @@ import { Trends } from "./components/Trends";
 import { useForegroundSync } from "./hooks/useForegroundSync";
 import { useRecords } from "./hooks/useRecords";
 import { dateKeyInTimeZone, shiftDateKey } from "./lib/time";
-import { clearLocalData, clearProfilePictureCache } from "./offline/store";
+import { clearLocalData, clearProfilePictureCache, retainCurrentProfilePictureCache } from "./offline/store";
 
 const EXPECTED_API_CONTRACT_VERSION = 1;
 
@@ -103,10 +103,19 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
     }
   }, [babies.data, selectedId]);
 
+  const selectedBaby = babies.data?.find((item) => item.id === selectedId) ?? babies.data?.[0];
+  useEffect(() => {
+    if (!selectedBaby) return;
+    const pictureUrl = selectedBaby.has_profile_picture
+      ? `/api/v1/babies/${selectedBaby.id}/profile-picture?v=${selectedBaby.updated_at}`
+      : null;
+    void retainCurrentProfilePictureCache(pictureUrl);
+  }, [selectedBaby?.has_profile_picture, selectedBaby?.id, selectedBaby?.updated_at]);
+
   if (babies.isLoading || household.isLoading) return <LoadingScreen />;
   if (!household.data) return <ErrorScreen />;
   if (!babies.data?.length) return <BabyOnboarding />;
-  const baby = babies.data.find((item) => item.id === selectedId) ?? babies.data[0];
+  const baby = selectedBaby ?? babies.data[0];
   const activeByBaby = new Map(
     (activeStatuses.data ?? []).map((status) => [status.baby_id, status.active_types.length]),
   );

@@ -22,4 +22,11 @@ test("the production worker caches a fetched profile picture for offline display
     return { body: await response.text(), status: response.status };
   }, pictureUrl);
   expect(cachedResponse).toEqual({ body: onlineBody, status: 200 });
+
+  const replacementUrl = pictureUrl.replace("?v=1", "?v=2");
+  await page.evaluate(async (url) => (await fetch(url)).text(), replacementUrl);
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([expect.stringContaining("?v=2")]);
 });

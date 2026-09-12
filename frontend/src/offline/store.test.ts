@@ -2,7 +2,7 @@ import { vi } from "vitest";
 
 import { api, ApiError } from "../api/client";
 import type { CareRecordCreate, CareRecordPage } from "../api/types";
-import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, clearProfilePictureCache, flushPending, pendingForBaby, queueCreation, retryPendingCreation } from "./store";
+import { cacheRecords, cachedRecords, clearBabyLocalData, clearLocalData, clearProfilePictureCache, flushPending, pendingForBaby, queueCreation, retainCurrentProfilePictureCache, retryPendingCreation } from "./store";
 
 test("persists offline creations by baby until synchronization", async () => {
   await clearLocalData();
@@ -120,6 +120,41 @@ test("profile picture changes remove every version from the managed runtime cach
   await clearProfilePictureCache();
 
   expect(deletePictureCache).toHaveBeenCalledExactlyOnceWith("minilog-profile-pictures");
+  vi.unstubAllGlobals();
+});
+
+test("profile picture reconciliation retains only the selected Baby's current version", async () => {
+  const remove = vi.fn().mockResolvedValue(true);
+  const request = (path: string) => new Request(new URL(path, globalThis.location.href));
+  const current = request("/api/v1/babies/current/profile-picture?v=2");
+  const oldVersion = request("/api/v1/babies/current/profile-picture?v=1");
+  const otherBaby = request("/api/v1/babies/other/profile-picture?v=1");
+  vi.stubGlobal("caches", {
+    open: vi.fn().mockResolvedValue({
+      delete: remove,
+      keys: vi.fn().mockResolvedValue([oldVersion, current, otherBaby]),
+    }),
+  });
+
+  await retainCurrentProfilePictureCache("/api/v1/babies/current/profile-picture?v=2");
+
+  expect(remove).toHaveBeenCalledTimes(2);
+  expect(remove).toHaveBeenCalledWith(oldVersion);
+  expect(remove).toHaveBeenCalledWith(otherBaby);
+  expect(remove).not.toHaveBeenCalledWith(current);
+
+  remove.mockClear();
+  await retainCurrentProfilePictureCache(null);
+  expect(remove).toHaveBeenCalledTimes(3);
+  vi.unstubAllGlobals();
+});
+
+test("profile picture reconciliation is best-effort when Cache Storage is blocked", async () => {
+  vi.stubGlobal("caches", {
+    open: vi.fn().mockRejectedValue(new Error("Cache Storage blocked")),
+  });
+
+  await expect(retainCurrentProfilePictureCache(null)).resolves.toBeUndefined();
   vi.unstubAllGlobals();
 });
 

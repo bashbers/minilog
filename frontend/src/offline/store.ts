@@ -122,6 +122,20 @@ export async function clearProfilePictureCache() {
   if ("caches" in globalThis) await caches.delete("minilog-profile-pictures");
 }
 
+export async function retainCurrentProfilePictureCache(pictureUrl: string | null) {
+  if (!("caches" in globalThis)) return;
+  try {
+    const cache = await caches.open("minilog-profile-pictures");
+    const retainedUrl = pictureUrl ? new URL(pictureUrl, globalThis.location.href).href : null;
+    const requests = await cache.keys();
+    await Promise.all(
+      requests.filter((request) => request.url !== retainedUrl).map((request) => cache.delete(request)),
+    );
+  } catch {
+    // Cache Storage can be disabled by browser privacy controls. Server state remains canonical.
+  }
+}
+
 export async function clearLocalData() {
   await Promise.allSettled([
     (async () => {

@@ -17,7 +17,7 @@ export default defineConfig({
             handler: "CacheFirst",
             options: {
               cacheName: "minilog-profile-pictures",
-              expiration: { maxEntries: 8, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              expiration: { maxEntries: 1, maxAgeSeconds: 7 * 24 * 60 * 60 },
             },
           },
         ],

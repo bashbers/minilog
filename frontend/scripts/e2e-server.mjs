@@ -13,14 +13,16 @@ const types = new Map([
 const servedPictures = new Set();
 
 createServer(async (request, response) => {
-  const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+  const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+  const { pathname } = requestUrl;
   if (/^\/api\/v1\/babies\/offline-cache-[^/]+\/profile-picture$/.test(pathname)) {
-    if (servedPictures.has(pathname)) {
+    const pictureKey = `${pathname}${requestUrl.search}`;
+    if (servedPictures.has(pictureKey)) {
       response.writeHead(503, { "Content-Type": "text/plain" });
       response.end("origin unavailable");
       return;
     }
-    servedPictures.add(pathname);
+    servedPictures.add(pictureKey);
     response.writeHead(200, {
       "Cache-Control": "private, no-store",
       "Content-Type": "image/svg+xml",
