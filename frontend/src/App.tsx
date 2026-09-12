@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, ApiError } from "./api/client";
+import { removeMissingBabyQueries } from "./api/cache";
 import type { Baby, Caregiver, TimelineRecord } from "./api/types";
 import { careActions, careRecordSummaryValues, careRecordTypesForGroup, careSummaryCatalog, isActiveCareRecord } from "./careRecordForms";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
@@ -100,17 +101,24 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   });
 
   useEffect(() => {
-    if (!babies.data?.length) return;
+    if (!babies.data) return;
+    if (babies.data.length === 0) {
+      setSelectedId(null);
+      localStorage.removeItem("selectedBaby");
+      return;
+    }
     if (!selectedId || !babies.data.some((baby) => baby.id === selectedId)) {
       setSelectedId(babies.data[0].id);
       localStorage.setItem("selectedBaby", babies.data[0].id);
     }
-  }, [babies.data, selectedId]);
+  }, [babies.data, babies.dataUpdatedAt, selectedId]);
 
   useEffect(() => {
     if (!babies.data) return;
-    void reconcileBabyLocalData(babies.data.map((baby) => baby.id));
-  }, [babies.data]);
+    const currentBabyIds = babies.data.map((baby) => baby.id);
+    removeMissingBabyQueries(queryClient, currentBabyIds);
+    void reconcileBabyLocalData(currentBabyIds);
+  }, [babies.data, babies.dataUpdatedAt, queryClient]);
 
   const selectedBaby = babies.data?.find((item) => item.id === selectedId) ?? babies.data?.[0];
   useEffect(() => {
@@ -119,7 +127,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
       ? `/api/v1/babies/${selectedBaby.id}/profile-picture?v=${selectedBaby.updated_at}`
       : null;
     void retainCurrentProfilePictureCache(pictureUrl);
-  }, [babies.data, selectedBaby?.has_profile_picture, selectedBaby?.id, selectedBaby?.updated_at]);
+  }, [babies.data, babies.dataUpdatedAt, selectedBaby?.has_profile_picture, selectedBaby?.id, selectedBaby?.updated_at]);
 
   if (babies.isLoading || household.isLoading) return <LoadingScreen />;
   if (!household.data) return <ErrorScreen />;

@@ -175,11 +175,21 @@ test("profile picture reconciliation retains only the selected Baby's current ve
 });
 
 test("profile picture reconciliation is best-effort when Cache Storage is blocked", async () => {
+  const remove = vi.fn().mockResolvedValue(true);
   vi.stubGlobal("caches", {
-    open: vi.fn().mockRejectedValue(new Error("Cache Storage blocked")),
+    open: vi.fn()
+      .mockRejectedValueOnce(new Error("Cache Storage blocked"))
+      .mockResolvedValueOnce({
+        delete: remove,
+        keys: vi.fn().mockResolvedValue([
+          new Request(new URL("/api/v1/babies/deleted/profile-picture?v=1", location.href)),
+        ]),
+      }),
   });
 
   await expect(retainCurrentProfilePictureCache(null)).resolves.toBeUndefined();
+  await expect(retainCurrentProfilePictureCache(null)).resolves.toBeUndefined();
+  expect(remove).toHaveBeenCalledTimes(1);
   vi.unstubAllGlobals();
 });
 

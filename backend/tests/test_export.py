@@ -408,6 +408,16 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="invalid Caregiver identity"):
         restore_minilog_export(invalid_owner_password_path, TEST_DATABASE)
 
+    def add_invalid_unreferenced_baby(payload: dict) -> None:
+        baby = dict(payload["tables"]["babies"][0])
+        baby.update({"id": "not-a-uuid", "display_name": "Invalid identity"})
+        payload["tables"]["babies"].append(baby)
+
+    invalid_uuid_path = tmp_path / "invalid-uuid.zip"
+    write_payload_variant(invalid_uuid_path, members, add_invalid_unreferenced_baby)
+    with pytest.raises(RuntimeError, match=r"invalid UUID in babies\.id"):
+        restore_minilog_export(invalid_uuid_path, TEST_DATABASE)
+
     def empty_note(payload: dict) -> None:
         payload["tables"]["note_records"][0]["body"] = ""
 
@@ -492,6 +502,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
         TEST_DATABASE,
         Path(f"{TEST_DATABASE}-wal"),
         Path(f"{TEST_DATABASE}-shm"),
+        Path(f"{TEST_DATABASE}-journal"),
     ):
         if live_path.exists():
             assert b"RESTORE_PRIVATE_MARKER_C3F971" not in live_path.read_bytes()

@@ -12,6 +12,7 @@ import zipfile
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
+from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PIL import Image, UnidentifiedImageError
@@ -63,6 +64,33 @@ RUNTIME_TABLES = ["invitations", "sessions", "processed_mutations", "sync_change
 BINARY_COLUMNS = {
     "baby_profile_pictures": {"webp_bytes"},
     "import_batches": {"source_contents"},
+}
+UUID_COLUMNS = {
+    "households": {"id"},
+    "caregivers": {"id"},
+    "caregiver_quick_actions": {"caregiver_id"},
+    "babies": {"id"},
+    "baby_profile_pictures": {"baby_id"},
+    "import_batches": {"id", "baby_id", "created_by_id"},
+    "care_records": {
+        "id",
+        "baby_id",
+        "author_id",
+        "last_modified_by_id",
+        "import_batch_id",
+    },
+    "breastfeeding_records": {"care_record_id"},
+    "breastfeeding_intervals": {"id", "care_record_id"},
+    "bottle_feeding_records": {"care_record_id"},
+    "solid_food_feeding_records": {"care_record_id"},
+    "sleep_records": {"care_record_id"},
+    "diaper_change_records": {"care_record_id"},
+    "pumping_records": {"care_record_id"},
+    "measurement_records": {"care_record_id"},
+    "medication_administration_records": {"care_record_id"},
+    "note_records": {"care_record_id"},
+    "imported_care_records": {"care_record_id"},
+    "imported_daily_notes": {"id", "baby_id", "import_batch_id"},
 }
 SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 DETAIL_TABLE_BY_RECORD_TYPE = {
@@ -334,6 +362,17 @@ def insert_rows(connection: sqlite3.Connection, table: str, rows: list[dict]) ->
     for row in rows:
         if not row or not set(row).issubset(allowed):
             raise RuntimeError(f"Export has invalid columns for {table}.")
+        for column in UUID_COLUMNS.get(table, set()):
+            value = row.get(column)
+            if value is None:
+                continue
+            try:
+                if not isinstance(value, str) or str(UUID(value)) != value:
+                    raise ValueError
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"Export has an invalid UUID in {table}.{column}."
+                ) from exc
         columns = list(row)
         quoted = ",".join(f'"{column}"' for column in columns)
         placeholders = ",".join("?" for _ in columns)

@@ -70,7 +70,12 @@ def record_payload(baby_id: str, record_type: str, **details: Any) -> dict[str, 
 
 def assert_live_database_erased(*private_markers: str) -> None:
     engine.dispose()
-    for path in (TEST_DATABASE, Path(f"{TEST_DATABASE}-wal"), Path(f"{TEST_DATABASE}-shm")):
+    for path in (
+        TEST_DATABASE,
+        Path(f"{TEST_DATABASE}-wal"),
+        Path(f"{TEST_DATABASE}-shm"),
+        Path(f"{TEST_DATABASE}-journal"),
+    ):
         if not path.exists():
             continue
         contents = path.read_bytes()

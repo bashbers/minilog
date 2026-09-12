@@ -82,6 +82,7 @@ async function mockApi(page: Page) {
   let profilePictureVersion = 1;
   let profilePictureColor = "#f0a07a";
   let babyDeleted = false;
+  let allBabiesDeleted = false;
   let caregiverIdentityErased = false;
   await page.exposeFunction("simulateRemotePictureUpdate", () => {
     hasProfilePicture = true;
@@ -94,6 +95,9 @@ async function mockApi(page: Page) {
   });
   await page.exposeFunction("simulateRemoteBabyDeletion", () => {
     babyDeleted = true;
+  });
+  await page.exposeFunction("simulateRemoteLastBabyDeletion", () => {
+    allBabiesDeleted = true;
   });
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -113,6 +117,7 @@ async function mockApi(page: Page) {
       return json({ id: caregiverId, username_display: "alex", display_name: "Alex", role: "owner", is_active: true, identity_erased_at: null });
     }
     if (path === "/api/v1/babies") {
+      if (allBabiesDeleted) return json([]);
       return json([
         { id: babyId, display_name: "Mila", birth_date: "2026-01-01", due_date: null, has_profile_picture: hasProfilePicture, updated_at: profilePictureVersion },
         { id: secondBabyId, display_name: "Noah", birth_date: "2025-01-01", due_date: null, has_profile_picture: false, updated_at: 1 },
@@ -358,6 +363,27 @@ test("visible Baby polling reconciles remote profile changes and removal", async
   });
   await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 7_000 });
   expect(await page.evaluate(() => localStorage.getItem("selectedBaby"))).toBe(secondBabyId);
+});
+
+test("remote deletion of the last Baby clears selection and picture residue", async ({ page }) => {
+  await page.goto("/");
+  const picture = page.locator("img.baby-picture");
+  const pictureUrl = await picture.evaluate((element) => (element as HTMLImageElement).src);
+  await page.evaluate(async (url) => {
+    const cache = await caches.open("minilog-profile-pictures");
+    await cache.put(url, new Response("last-baby-picture"));
+    await (window as unknown as { simulateRemoteLastBabyDeletion: () => Promise<void> })
+      .simulateRemoteLastBabyDeletion();
+  }, pictureUrl);
+
+  await expect(page.getByRole("heading", { name: "Who are we logging for?" })).toBeVisible({
+    timeout: 7_000,
+  });
+  expect(await page.evaluate(() => localStorage.getItem("selectedBaby"))).toBeNull();
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("minilog-profile-pictures");
+    return (await cache.keys()).map((request) => request.url);
+  })).toEqual([]);
 });
 
 test("History filters every care type and loads an equal-timestamp-safe cursor", async ({ page }) => {
