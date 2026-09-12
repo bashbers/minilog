@@ -37,9 +37,14 @@ def configured_database_path() -> Path:
     return Path(url.database).resolve()
 
 
-def read_only_connection(path: Path) -> sqlite3.Connection:
+@contextmanager
+def read_only_connection(path: Path) -> Iterator[sqlite3.Connection]:
     uri = f"file:{quote(path.as_posix(), safe='/')}?mode=ro"
-    return sqlite3.connect(uri, uri=True)
+    connection = sqlite3.connect(uri, uri=True)
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def verify_database(path: Path) -> None:

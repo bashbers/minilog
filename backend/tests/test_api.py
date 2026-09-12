@@ -620,7 +620,7 @@ def test_profile_picture_is_normalized_to_webp() -> None:
 def test_profile_picture_rejects_oversized_dimensions_before_decode(monkeypatch) -> None:
     import minilog.api.babies as babies_api
 
-    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 200)
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", None)
     settings = babies_api.get_settings().model_copy(
         update={"max_profile_picture_pixels": 256}
     )
@@ -636,6 +636,33 @@ def test_profile_picture_rejects_oversized_dimensions_before_decode(monkeypatch)
             f"/api/v1/babies/{baby_id}/profile-picture",
             headers={"X-CSRF-Token": csrf},
             files={"image": ("large-dimensions.png", compressed.getvalue(), "image/png")},
+        )
+
+        assert response.status_code == 413
+        assert response.json()["detail"] == "profile_picture_dimensions_too_large"
+
+    asyncio.run(with_client(scenario))
+
+
+def test_profile_picture_maps_pillow_bomb_warning_to_stable_error(monkeypatch) -> None:
+    import minilog.api.babies as babies_api
+
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 200)
+    settings = babies_api.get_settings().model_copy(
+        update={"max_profile_picture_pixels": 1_000}
+    )
+    monkeypatch.setattr(babies_api, "get_settings", lambda: settings)
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        baby_id = await create_baby(client, csrf)
+        compressed = io.BytesIO()
+        Image.new("1", (17, 17), 1).save(compressed, "PNG", optimize=True)
+
+        response = await client.put(
+            f"/api/v1/babies/{baby_id}/profile-picture",
+            headers={"X-CSRF-Token": csrf},
+            files={"image": ("bomb-warning.png", compressed.getvalue(), "image/png")},
         )
 
         assert response.status_code == 413

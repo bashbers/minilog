@@ -4,6 +4,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -23,7 +24,7 @@ from minilog.cli import (
     verify_database_writable,
 )
 from minilog.constants import SCHEMA_REVISION
-from minilog.database import PrivateDatabaseBusyError, SessionLocal
+from minilog.database import PrivateDatabaseBusyError, SessionLocal, engine
 from minilog.models import Baby
 from minilog.services.destructive import permanently_delete_baby
 
@@ -168,7 +169,7 @@ def test_private_deletion_fails_before_commit_when_a_reader_prevents_exclusivity
         baby_id = baby.id
 
     database_path = cli.configured_database_path()
-    with sqlite3.connect(database_path) as reader:
+    with closing(sqlite3.connect(database_path)) as reader:
         reader.execute("BEGIN")
         reader.execute("SELECT display_name FROM babies").fetchall()
         with SessionLocal() as deleting:
@@ -187,11 +188,16 @@ def test_private_deletion_releases_exclusive_connection_for_queries_and_backup(t
         setup.commit()
         baby_id = baby.id
 
+    # Exercise the state that would leave multiple idle handles in a persistent SQLAlchemy pool.
+    with engine.connect() as first, engine.connect() as second:
+        first.execute(text("SELECT COUNT(*) FROM babies")).one()
+        second.execute(text("SELECT COUNT(*) FROM babies")).one()
+
     with SessionLocal() as deleting:
         permanently_delete_baby(deleting, baby_id, "Delete me", True)
 
     database_path = cli.configured_database_path()
-    with sqlite3.connect(database_path, timeout=0.1) as independent:
+    with closing(sqlite3.connect(database_path, timeout=0.1)) as independent:
         assert independent.execute("SELECT COUNT(*) FROM babies").fetchone() == (0,)
     snapshot = backup_database(database_path, tmp_path / "after-private-change.sqlite3")
     verify_database(snapshot)

@@ -9,6 +9,7 @@ from sqlalchemy import MetaData, create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from minilog.config import get_settings
 
@@ -42,6 +43,7 @@ engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False, "timeout": 5},
     pool_pre_ping=True,
+    poolclass=NullPool,
 )
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
@@ -97,28 +99,26 @@ def private_database_changes(session: Session) -> Iterator[None]:
                 ) from exc
 
             try:
-                try:
-                    yield
-                    session.commit()
-                except Exception:
-                    session.rollback()
-                    raise
-                try:
-                    busy, _remaining, _checkpointed = session.execute(
-                        text("PRAGMA wal_checkpoint(TRUNCATE)")
-                    ).one()
-                    session.commit()
-                    if busy:
-                        logger.critical(
-                            "private database WAL truncation unexpectedly remained busy"
-                        )
-                except Exception:
-                    # The mutation is already durable. Never turn a committed destructive request
-                    # into a reported failure that invites an unsafe retry.
-                    logger.exception("private database WAL truncation failed after commit")
-            finally:
-                session.close()
+                yield
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            try:
+                busy, _remaining, _checkpointed = session.execute(
+                    text("PRAGMA wal_checkpoint(TRUNCATE)")
+                ).one()
+                session.commit()
+                if busy:
+                    logger.critical("private database WAL truncation unexpectedly remained busy")
+            except Exception:
+                # The mutation is already durable. Never turn a committed destructive request
+                # into a reported failure that invites an unsafe retry.
+                logger.exception("private database WAL truncation failed after commit")
         finally:
+            # Close the Session on success and on failed exclusivity so it cannot retain a
+            # reference to the one-use connection.
+            session.close()
             session.bind = original_bind
             # SQLite cannot leave EXCLUSIVE locking mode while WAL is active. Destroy this
             # connection instead of returning its permanently-exclusive handle to the pool.
