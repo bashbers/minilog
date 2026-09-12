@@ -17,10 +17,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PIL import Image, UnidentifiedImageError
 from pydantic import TypeAdapter
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import Boolean, Enum, Integer, LargeBinary, String, create_engine, select, text
 from sqlalchemy.orm import Session
 
-from minilog.cli import backup_database, read_only_connection, verify_database
+from minilog.cli import (
+    DATABASE_SIDECAR_SUFFIXES,
+    backup_database,
+    read_only_connection,
+    verify_database,
+)
 from minilog.database import Base
 from minilog.models import (
     BabyProfilePicture,
@@ -358,21 +363,47 @@ def checked_archive(path: Path) -> tuple[dict, dict[str, bytes]]:
 
 
 def insert_rows(connection: sqlite3.Connection, table: str, rows: list[dict]) -> None:
-    allowed = {column.name for column in Base.metadata.tables[table].columns}
+    table_definition = Base.metadata.tables[table]
+    allowed = {column.name for column in table_definition.columns}
     for row in rows:
-        if not row or not set(row).issubset(allowed):
+        if set(row) != allowed:
             raise RuntimeError(f"Export has invalid columns for {table}.")
-        for column in UUID_COLUMNS.get(table, set()):
-            value = row.get(column)
+        for column in table_definition.columns:
+            value = row[column.name]
             if value is None:
+                if not column.nullable:
+                    raise RuntimeError(
+                        f"Export has a null value in {table}.{column.name}."
+                    )
                 continue
-            try:
-                if not isinstance(value, str) or str(UUID(value)) != value:
-                    raise ValueError
-            except ValueError as exc:
+            if column.name in UUID_COLUMNS.get(table, set()):
+                try:
+                    if not isinstance(value, str) or str(UUID(value)) != value:
+                        raise ValueError
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"Export has an invalid UUID in {table}.{column.name}."
+                    ) from exc
+            if isinstance(column.type, Boolean):
+                valid_type = type(value) is bool
+            elif isinstance(column.type, Integer):
+                valid_type = type(value) is int and -(2**63) <= value < 2**63
+            elif isinstance(column.type, LargeBinary):
+                valid_type = isinstance(value, bytes)
+            elif isinstance(column.type, Enum):
+                valid_type = isinstance(value, str) and value in column.type.enums
+            elif isinstance(column.type, String):
+                valid_type = isinstance(value, str) and (
+                    column.type.length is None or len(value) <= column.type.length
+                )
+            else:
                 raise RuntimeError(
-                    f"Export has an invalid UUID in {table}.{column}."
-                ) from exc
+                    f"Restore validation does not support {table}.{column.name}."
+                )
+            if not valid_type:
+                raise RuntimeError(
+                    f"Export has an invalid value type in {table}.{column.name}."
+                )
         columns = list(row)
         quoted = ",".join(f'"{column}"' for column in columns)
         placeholders = ",".join("?" for _ in columns)
@@ -626,12 +657,12 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
                 raise
         validate_restored_domain(temporary)
         verify_database(temporary)
-        for suffix in ("-wal", "-shm"):
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
             Path(f"{database_path}{suffix}").unlink(missing_ok=True)
         os.replace(temporary, database_path)
     finally:
         temporary.unlink(missing_ok=True)
-        Path(f"{temporary}-wal").unlink(missing_ok=True)
-        Path(f"{temporary}-shm").unlink(missing_ok=True)
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
+            Path(f"{temporary}{suffix}").unlink(missing_ok=True)
     verify_database(database_path)
     return recovery

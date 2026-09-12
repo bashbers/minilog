@@ -28,6 +28,7 @@ from minilog.models import AuthSession, Caregiver, CaregiverRole, now_ms
 from minilog.security import hash_password
 
 logger = logging.getLogger("minilog.startup")
+DATABASE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
 
 
 def configured_database_path() -> Path:
@@ -135,13 +136,13 @@ def install_verified_snapshot(snapshot_path: Path, database_path: Path) -> None:
             target.execute("PRAGMA journal_mode = DELETE")
         os.chmod(temporary, 0o600)
         verify_database(temporary)
-        for suffix in ("-wal", "-shm"):
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
             Path(f"{database_path}{suffix}").unlink(missing_ok=True)
         os.replace(temporary, database_path)
     finally:
         temporary.unlink(missing_ok=True)
-        Path(f"{temporary}-wal").unlink(missing_ok=True)
-        Path(f"{temporary}-shm").unlink(missing_ok=True)
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
+            Path(f"{temporary}{suffix}").unlink(missing_ok=True)
     verify_database(database_path)
 
 

@@ -103,11 +103,13 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   useEffect(() => {
     if (!babies.data) return;
     if (babies.data.length === 0) {
+      setQuickAdd(false);
       setSelectedId(null);
       localStorage.removeItem("selectedBaby");
       return;
     }
     if (!selectedId || !babies.data.some((baby) => baby.id === selectedId)) {
+      setQuickAdd(false);
       setSelectedId(babies.data[0].id);
       localStorage.setItem("selectedBaby", babies.data[0].id);
     }
@@ -168,10 +170,10 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
       </header>
 
       <Routes>
-        <Route path="/today" element={<TodayPage baby={baby} timeZone={household.data.time_zone} />} />
-        <Route path="/history" element={<HistoryPage baby={baby} />} />
-        <Route path="/trends" element={<TrendsPage baby={baby} timeZone={household.data.time_zone} />} />
-        <Route path="/settings" element={<SettingsPage baby={baby} caregiver={caregiver} />} />
+        <Route path="/today" element={<TodayPage key={baby.id} baby={baby} timeZone={household.data.time_zone} />} />
+        <Route path="/history" element={<HistoryPage key={baby.id} baby={baby} />} />
+        <Route path="/trends" element={<TrendsPage key={baby.id} baby={baby} timeZone={household.data.time_zone} />} />
+        <Route path="/settings" element={<SettingsPage key={baby.id} baby={baby} caregiver={caregiver} />} />
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Routes>
 
@@ -181,7 +183,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
         <button className="quick-add-button" onClick={() => setQuickAdd(true)} aria-label="Add care record"><Plus /></button>
         <NavLink to="/trends"><Sparkles /><span>Trends</span></NavLink>
       </nav>
-      {quickAdd && <QuickAdd babyId={baby.id} onClose={() => setQuickAdd(false)} />}
+      {quickAdd && <QuickAdd key={baby.id} babyId={baby.id} onClose={() => setQuickAdd(false)} />}
     </div>
   );
 }

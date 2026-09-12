@@ -17,6 +17,7 @@ from minilog.cli import (
     MigrationUpgradeError,
     backup_database,
     database_revision,
+    install_verified_snapshot,
     restore_database,
     run_alembic_upgrade,
     upgrade_database,
@@ -53,11 +54,24 @@ def test_backup_is_verified_and_restore_preserves_current_database(tmp_path) -> 
 
     with sqlite3.connect(live) as connection:
         connection.execute("UPDATE marker SET value = 'after'")
-
     recovery = restore_database(snapshot, live)
     assert marker(live) == "before"
     assert marker(recovery) == "after"
     verify_database(recovery)
+
+
+def test_snapshot_install_removes_an_orphaned_rollback_journal(tmp_path) -> None:
+    live = tmp_path / "minilog.sqlite3"
+    snapshot = tmp_path / "snapshot.sqlite3"
+    create_database(live, "private old value")
+    create_database(snapshot, "restored value")
+    rollback_journal = Path(f"{live}-journal")
+    rollback_journal.write_bytes(b"PRIVATE_PRE_RESTORE_JOURNAL_MARKER")
+
+    install_verified_snapshot(snapshot, live)
+
+    assert marker(live) == "restored value"
+    assert not rollback_journal.exists()
 
 
 def test_upgrade_takes_verified_snapshot_and_reaches_expected_revision(tmp_path) -> None:

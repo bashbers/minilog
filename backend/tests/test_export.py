@@ -418,6 +418,30 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match=r"invalid UUID in babies\.id"):
         restore_minilog_export(invalid_uuid_path, TEST_DATABASE)
 
+    def invalidate_baby_timestamp(payload: dict) -> None:
+        payload["tables"]["babies"][0]["updated_at"] = "not-an-integer"
+
+    invalid_scalar_path = tmp_path / "invalid-scalar.zip"
+    write_payload_variant(invalid_scalar_path, members, invalidate_baby_timestamp)
+    with pytest.raises(RuntimeError, match=r"invalid value type in babies\.updated_at"):
+        restore_minilog_export(invalid_scalar_path, TEST_DATABASE)
+
+    def invalidate_boolean(payload: dict) -> None:
+        payload["tables"]["caregivers"][0]["is_active"] = 1
+
+    invalid_boolean_path = tmp_path / "invalid-boolean.zip"
+    write_payload_variant(invalid_boolean_path, members, invalidate_boolean)
+    with pytest.raises(RuntimeError, match=r"invalid value type in caregivers\.is_active"):
+        restore_minilog_export(invalid_boolean_path, TEST_DATABASE)
+
+    def invalidate_enum(payload: dict) -> None:
+        payload["tables"]["households"][0]["clock_format"] = "THIRTEEN_HOUR"
+
+    invalid_enum_path = tmp_path / "invalid-enum.zip"
+    write_payload_variant(invalid_enum_path, members, invalidate_enum)
+    with pytest.raises(RuntimeError, match=r"invalid value type in households\.clock_format"):
+        restore_minilog_export(invalid_enum_path, TEST_DATABASE)
+
     def empty_note(payload: dict) -> None:
         payload["tables"]["note_records"][0]["body"] = ""
 

@@ -170,6 +170,19 @@ async function mockApi(page: Page) {
       return json({ changes: [], next_cursor: 0, oldest_valid_cursor: 0 });
     }
     if (path === "/api/v1/imports/piyolog/daily-notes") return json([]);
+    if (path === "/api/v1/imports/piyolog/preview" && request.method() === "POST") {
+      return json({
+        source_hash: "a".repeat(64),
+        duplicate_import_id: null,
+        detected_locale: "en",
+        date_from: "2026-09-01",
+        date_to: "2026-09-01",
+        counts: { note: 1 },
+        conflicts: {},
+        unknown_lines: [],
+        warnings: [],
+      });
+    }
     if (path === "/api/v1/sessions/devices") return json([]);
     if (path === `/api/v1/caregivers/${inactiveCaregiverId}/identity` && request.method() === "DELETE") {
       caregiverIdentityErased = true;
@@ -322,7 +335,7 @@ test("quick actions and record editing remain accessible on phone and desktop", 
 });
 
 test("visible Baby polling reconciles remote profile changes and removal", async ({ page }) => {
-  test.setTimeout(25_000);
+  test.setTimeout(35_000);
   await page.goto("/");
   const picture = page.locator("img.baby-picture");
   await expect(picture).toHaveAttribute("src", new RegExp(`${babyId}/profile-picture\\?v=1$`));
@@ -357,10 +370,17 @@ test("visible Baby polling reconciles remote profile changes and removal", async
     return (await cache.keys()).map((request) => request.url);
   })).toEqual([]);
 
+  await page.getByRole("button", { name: "Add care record" }).click();
+  const quickAdd = page.getByRole("dialog", { name: "Add care record" });
+  await expect(quickAdd).toBeVisible();
+  await quickAdd.locator(".care-action").first().click();
+  await quickAdd.getByLabel("When").fill("2026-09-12T10:15");
+
   await page.evaluate(async () => {
     await (window as unknown as { simulateRemoteBabyDeletion: () => Promise<void> })
       .simulateRemoteBabyDeletion();
   });
+  await expect(quickAdd).toHaveCount(0, { timeout: 7_000 });
   await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 7_000 });
   expect(await page.evaluate(() => localStorage.getItem("selectedBaby"))).toBe(secondBabyId);
 });
@@ -384,6 +404,28 @@ test("remote deletion of the last Baby clears selection and picture residue", as
     const cache = await caches.open("minilog-profile-pictures");
     return (await cache.keys()).map((request) => request.url);
   })).toEqual([]);
+});
+
+test("remote Baby replacement clears a PiyoLog preview before it can be confirmed", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+  await page.getByLabel("Text export").setInputFiles({
+    name: "mila-private.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("PiyoLog text export"),
+  });
+  await page.getByRole("button", { name: "Preview import" }).click();
+  await expect(page.getByRole("button", { name: "Confirm import for Mila" })).toBeVisible();
+
+  await page.evaluate(async () => {
+    await (window as unknown as { simulateRemoteBabyDeletion: () => Promise<void> })
+      .simulateRemoteBabyDeletion();
+  });
+
+  await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 7_000 });
+  await expect(page.getByRole("button", { name: "Confirm import for Mila" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Preview import" })).toBeDisabled();
 });
 
 test("History filters every care type and loads an equal-timestamp-safe cursor", async ({ page }) => {
