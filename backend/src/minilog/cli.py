@@ -7,10 +7,11 @@ import logging
 import os
 import signal
 import sqlite3
+import sys
 import tempfile
 import threading
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -115,11 +116,14 @@ def backup_database(database_path: Path, output_path: Path | None = None) -> Pat
             sqlite3.connect(temporary) as target,
         ):
             source.backup(target)
+            target.execute("PRAGMA journal_mode=DELETE")
         os.chmod(temporary, 0o600)
         verify_database(temporary)
         os.replace(temporary, output_path)
     finally:
         temporary.unlink(missing_ok=True)
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
+            Path(f"{temporary}{suffix}").unlink(missing_ok=True)
     return output_path
 
 
@@ -209,6 +213,25 @@ def migration_signal_guard() -> Iterator[None]:
         signal.signal(signal_number, interrupt)
     try:
         yield
+    finally:
+        for signal_number, handler in previous.items():
+            signal.signal(signal_number, handler)
+
+
+def hold_maintenance_until_shutdown() -> None:
+    stopped = threading.Event()
+    previous = {
+        signal_number: signal.getsignal(signal_number)
+        for signal_number in MIGRATION_SIGNALS
+    }
+
+    def stop(_signum: int, _frame: object) -> None:
+        stopped.set()
+
+    for signal_number in MIGRATION_SIGNALS:
+        signal.signal(signal_number, stop)
+    try:
+        stopped.wait()
     finally:
         for signal_number, handler in previous.items():
             signal.signal(signal_number, handler)
@@ -338,8 +361,7 @@ def start_main() -> None:
     except Exception as exc:
         logger.error("database lifecycle status=failed exception=%s", type(exc).__name__)
         logger.error("database lifecycle status=maintenance operator_action=required")
-        with suppress(KeyboardInterrupt):
-            thread.join()
+        hold_maintenance_until_shutdown()
         return
     finally:
         server.shutdown()
@@ -363,6 +385,25 @@ def start_main() -> None:
     )
 
 
+@contextmanager
+def restore_source(argument: str, database_path: Path) -> Iterator[Path]:
+    if argument != "-":
+        yield Path(argument)
+        return
+    descriptor, raw_path = tempfile.mkstemp(
+        prefix=".minilog-restore-input-", dir=database_path.parent
+    )
+    temporary = Path(raw_path)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            while chunk := sys.stdin.buffer.read(1024 * 1024):
+                output.write(chunk)
+        os.chmod(temporary, 0o600)
+        yield temporary
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def backup_main() -> None:
     parser = argparse.ArgumentParser(description="Create and verify an online Minilog backup.")
     parser.add_argument("--output", type=Path)
@@ -373,7 +414,7 @@ def backup_main() -> None:
 
 def restore_main() -> None:
     parser = argparse.ArgumentParser(description="Restore a verified Minilog SQLite snapshot.")
-    parser.add_argument("snapshot", type=Path)
+    parser.add_argument("snapshot", help="Snapshot path, or - to read it from standard input.")
     parser.add_argument(
         "--confirm-offline",
         action="store_true",
@@ -382,13 +423,15 @@ def restore_main() -> None:
     args = parser.parse_args()
     if not args.confirm_offline:
         parser.error("stop the API, then pass --confirm-offline")
-    recovery = restore_database(args.snapshot, configured_database_path())
+    database_path = configured_database_path()
+    with restore_source(args.snapshot, database_path) as snapshot:
+        recovery = restore_database(snapshot, database_path)
     print(f"Restore complete. Pre-restore recovery copy: {recovery}")
 
 
 def restore_export_main() -> None:
     parser = argparse.ArgumentParser(description="Restore a checked Minilog export package.")
-    parser.add_argument("archive", type=Path)
+    parser.add_argument("archive", help="Export path, or - to read it from standard input.")
     parser.add_argument(
         "--confirm-offline",
         action="store_true",
@@ -399,7 +442,9 @@ def restore_export_main() -> None:
         parser.error("stop the API, then pass --confirm-offline")
     from minilog.services.exports import restore_minilog_export
 
-    recovery = restore_minilog_export(args.archive, configured_database_path())
+    database_path = configured_database_path()
+    with restore_source(args.archive, database_path) as archive:
+        recovery = restore_minilog_export(archive, database_path)
     print(f"Export restored. Pre-restore recovery copy: {recovery}")
 
 

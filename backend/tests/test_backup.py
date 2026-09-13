@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import sqlite3
@@ -6,7 +7,7 @@ import sys
 import time
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import text
@@ -19,6 +20,7 @@ from minilog.cli import (
     database_revision,
     install_verified_snapshot,
     restore_database,
+    restore_source,
     run_alembic_upgrade,
     upgrade_database,
     verify_database,
@@ -51,6 +53,9 @@ def test_backup_is_verified_and_restore_preserves_current_database(tmp_path) -> 
     assert backup_database(live, snapshot) == snapshot
     verify_database(snapshot)
     assert snapshot.stat().st_mode & 0o777 == 0o600
+    assert not any(
+        Path(f"{snapshot}{suffix}").exists() for suffix in cli.DATABASE_SIDECAR_SUFFIXES
+    )
 
     with sqlite3.connect(live) as connection:
         connection.execute("UPDATE marker SET value = 'after'")
@@ -58,6 +63,21 @@ def test_backup_is_verified_and_restore_preserves_current_database(tmp_path) -> 
     assert marker(live) == "before"
     assert marker(recovery) == "after"
     verify_database(recovery)
+
+
+def test_restore_source_streams_private_input_inside_the_data_directory(
+    tmp_path, monkeypatch
+) -> None:
+    private_bytes = b"private snapshot bytes"
+    monkeypatch.setattr(sys, "stdin", Mock(buffer=io.BytesIO(private_bytes)))
+
+    with restore_source("-", tmp_path / "minilog.db") as source:
+        assert source.parent == tmp_path
+        assert source.read_bytes() == private_bytes
+        assert source.stat().st_mode & 0o777 == 0o600
+        source_path = source
+
+    assert not source_path.exists()
 
 
 def test_snapshot_install_removes_an_orphaned_rollback_journal(tmp_path) -> None:
@@ -206,12 +226,15 @@ def test_failed_start_stays_in_maintenance_without_restarting_migration(monkeypa
     monkeypatch.setattr(cli.threading, "Thread", Mock(return_value=thread))
     monkeypatch.setattr(cli, "configured_database_path", Mock(return_value=Path("db.sqlite3")))
     monkeypatch.setattr(cli, "upgrade_database", Mock(side_effect=MigrationUpgradeError("failed")))
+    hold = Mock()
+    monkeypatch.setattr(cli, "hold_maintenance_until_shutdown", hold)
     exec_process = Mock()
     monkeypatch.setattr(cli.os, "execvp", exec_process)
 
     cli.start_main()
 
-    assert thread.join.call_args_list == [call(), call(timeout=5)]
+    hold.assert_called_once_with()
+    thread.join.assert_called_once_with(timeout=5)
     exec_process.assert_not_called()
 
 

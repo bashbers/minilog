@@ -135,7 +135,7 @@ sha256sum ./private-minilog-backups/<printed-filename>
 
 The two SHA-256 values must match before the copy is moved to encrypted off-host storage. With Podman, obtain the container ID using `podman compose ps -q api`, then use `podman cp <container-id>:/data/backups/<printed-filename> ./private-minilog-backups/<printed-filename>`; the permission and checksum commands are unchanged.
 
-Restore is an explicit offline maintenance operation:
+Restore is an explicit offline maintenance operation. The `-` source reads from standard input, so the private host file stays `0600` and the non-root container does not need a host bind mount:
 
 1. Stop normal API service.
 2. Validate the selected snapshot and preserve the current database under a unique recovery name.
@@ -145,11 +145,11 @@ Restore is an explicit offline maintenance operation:
 
 No restore overwrites the sole current database before a validated recovery copy exists. Scheduled backups and retention automation are deferred.
 
-Copy the printed backup file out of the named volume to encrypted, independently managed storage. To restore a selected snapshot, bind-mount the directory containing it read-only into the one-off container. Use an absolute host path in place of `/srv/private/minilog-recovery`:
+Copy the printed backup file out of the named volume to encrypted, independently managed storage. To restore a selected snapshot, stream it from its absolute host path:
 
 ```sh
 docker compose stop api
-docker compose run --rm -v /srv/private/minilog-recovery:/restore:ro api minilog-restore --confirm-offline /restore/minilog-YYYYMMDDTHHMMSSZ.sqlite3
+docker compose run --rm -T api minilog-restore --confirm-offline - < /srv/private/minilog-recovery/minilog-YYYYMMDDTHHMMSSZ.sqlite3
 docker compose up -d api web
 docker compose ps
 ```
@@ -158,7 +158,7 @@ A lossless Minilog ZIP export can be restored through the same offline safety pa
 
 ```sh
 docker compose stop api
-docker compose run --rm -v /srv/private/minilog-recovery:/restore:ro api minilog-restore-export --confirm-offline /restore/minilog-export.zip
+docker compose run --rm -T api minilog-restore-export --confirm-offline - < /srv/private/minilog-recovery/minilog-export.zip
 docker compose up -d api web
 docker compose ps
 ```
