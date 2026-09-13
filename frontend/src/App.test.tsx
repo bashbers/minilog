@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationObserver, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -46,7 +46,11 @@ test("refuses to run against a different API contract version", async () => {
 test("unauthenticated cleanup clears memory immediately and can retry browser storage", async () => {
   const queryClient = new QueryClient();
   queryClient.setQueryData(["records", "private-baby"], [{ body: "private care" }]);
-  queryClient.setQueryData(["me"], { id: "session-state" });
+  queryClient.setQueryData(["me"], { id: "private-caregiver", display_name: "Caregiver" });
+  const mutation = new MutationObserver(queryClient, {
+    mutationFn: async (variables: { body: string }) => ({ saved: variables.body }),
+  });
+  await mutation.mutate({ body: "private pending care" });
   localStorage.setItem("selectedBaby", "private-baby");
   const deleteCache = vi.fn()
     .mockRejectedValueOnce(new Error("Cache Storage temporarily blocked"))
@@ -58,7 +62,8 @@ test("unauthenticated cleanup clears memory immediately and can retry browser st
   );
   expect(localStorage.getItem("selectedBaby")).toBeNull();
   expect(queryClient.getQueryData(["records", "private-baby"])).toBeUndefined();
-  expect(queryClient.getQueryData(["me"])).toBeDefined();
+  expect(queryClient.getQueryData(["me"])).toBeUndefined();
+  expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
 
   await expect(clearUnauthenticatedClientData(queryClient)).resolves.toBeUndefined();
   expect(deleteCache).toHaveBeenCalledTimes(2);

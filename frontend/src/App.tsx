@@ -41,7 +41,7 @@ function AuthGate() {
 
 function SessionGate() {
   const queryClient = useQueryClient();
-  const [cleanupRequired, setCleanupRequired] = useState(false);
+  const [cleanupState, setCleanupState] = useState<"idle" | "required" | "complete">("idle");
   const setup = useQuery({
     queryKey: ["setup"],
     queryFn: api.setupStatus,
@@ -58,21 +58,29 @@ function SessionGate() {
     || (me.error instanceof ApiError && me.error.status === 401);
 
   useEffect(() => {
-    if (sessionInvalid) setCleanupRequired(true);
-  }, [sessionInvalid]);
+    if (sessionInvalid && cleanupState === "idle") setCleanupState("required");
+    if (!sessionInvalid && cleanupState === "complete") setCleanupState("idle");
+  }, [cleanupState, sessionInvalid]);
 
   useEffect(() => {
-    if (!cleanupRequired) return;
+    if (cleanupState !== "required") return;
+    let cleanupInFlight = false;
     const cleanup = () => {
+      if (cleanupInFlight) return;
+      cleanupInFlight = true;
       void clearUnauthenticatedClientData(queryClient)
-        .then(() => setCleanupRequired(false))
-        .catch(() => undefined);
+        .then(() => setCleanupState("complete"))
+        .catch(() => undefined)
+        .finally(() => { cleanupInFlight = false; });
     };
     cleanup();
     const retry = window.setInterval(cleanup, 5_000);
     return () => window.clearInterval(retry);
-  }, [cleanupRequired, queryClient]);
+  }, [cleanupState, queryClient]);
 
+  if (cleanupState === "required" || (sessionInvalid && cleanupState !== "complete")) {
+    return <LoadingScreen />;
+  }
   if (setup.isLoading || me.isLoading) return <LoadingScreen />;
   if (setup.data?.setup_required) return <SetupScreen />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginScreen />;
@@ -82,8 +90,10 @@ function SessionGate() {
 
 export async function clearUnauthenticatedClientData(queryClient: QueryClient) {
   localStorage.removeItem("selectedBaby");
+  queryClient.getMutationCache().clear();
+  void queryClient.resetQueries({ queryKey: ["me"], exact: true }).catch(() => undefined);
   queryClient.removeQueries({
-    predicate: ({ queryKey }) => !["compatibility", "setup", "me"].includes(
+    predicate: ({ queryKey }) => !["compatibility", "setup"].includes(
       String(queryKey[0]),
     ),
   });

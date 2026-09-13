@@ -422,6 +422,8 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
         with Image.open(io.BytesIO(contents)) as image:
             if image.format != "WEBP" or image.size != (256, 256):
                 raise RuntimeError("A profile picture is not a supported Minilog derivative.")
+            if image.is_animated or image.n_frames != 1:
+                raise RuntimeError("A profile picture must contain exactly one frame.")
             if any(image.info.get(key) for key in ("exif", "xmp", "icc_profile")):
                 raise RuntimeError("A profile picture contains forbidden metadata.")
             image.load()

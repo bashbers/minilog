@@ -387,6 +387,38 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="forbidden metadata"):
         restore_minilog_export(metadata_picture_path, TEST_DATABASE)
 
+    animated_picture = io.BytesIO()
+    Image.new("RGB", (256, 256), "#f0a07a").save(
+        animated_picture,
+        "WEBP",
+        save_all=True,
+        append_images=[Image.new("RGB", (256, 256), "#7256a8")],
+        duration=100,
+        loop=0,
+    )
+    animated_picture_bytes = animated_picture.getvalue()
+    animated_picture_payload = json.loads(members["data.json"])
+    animated_picture_payload["tables"]["baby_profile_pictures"][0]["content_hash"] = (
+        hashlib.sha256(animated_picture_bytes).hexdigest()
+    )
+    animated_picture_data = json.dumps(
+        animated_picture_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    animated_picture_path = tmp_path / "animated-picture.zip"
+    write_self_consistent_export(
+        animated_picture_path,
+        members,
+        replacements={
+            "data.json": animated_picture_data,
+            picture_name: animated_picture_bytes,
+        },
+    )
+    with pytest.raises(RuntimeError, match="exactly one frame"):
+        restore_minilog_export(animated_picture_path, TEST_DATABASE)
+
     omitted_source_path = tmp_path / "omitted-source.zip"
     write_self_consistent_export(omitted_source_path, members, omissions={import_name})
     with pytest.raises(RuntimeError, match="source file is missing"):
