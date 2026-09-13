@@ -7,11 +7,13 @@ from typing import Any
 from uuid import uuid4
 
 import httpx2 as httpx
+import pytest
 from conftest import TEST_DATABASE
 from PIL import Image
 from sqlalchemy import func, select, text
 
 from minilog.api import health
+from minilog.config import Settings
 from minilog.database import Base, SessionLocal, engine, get_db
 from minilog.main import app
 from minilog.models import (
@@ -105,6 +107,35 @@ def test_setup_session_and_owner_only_baby_creation() -> None:
         ]
 
     asyncio.run(with_client(scenario))
+
+
+def test_public_origin_rejects_alternate_hosts_and_origins() -> None:
+    async def scenario() -> None:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://alternate.test"
+        ) as client:
+            assert (await client.get("/api/v1/setup")).status_code == 400
+            assert (await client.get("/api/v1/health/ready")).status_code == 200
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/setup",
+                headers={"Origin": "https://alternate.test"},
+                json={},
+            )
+            assert response.status_code == 400
+            assert response.json() == {"detail": "origin_not_allowed"}
+
+    asyncio.run(scenario())
+
+
+def test_public_origin_and_cookie_transport_must_agree() -> None:
+    Settings(public_origin="http://minilog.test", secure_cookies=False, _env_file=None)
+    Settings(public_origin="https://minilog.test", secure_cookies=True, _env_file=None)
+    with pytest.raises(ValueError, match="secure cookies"):
+        Settings(public_origin="https://minilog.test", secure_cookies=False, _env_file=None)
+    with pytest.raises(ValueError, match="secure cookies"):
+        Settings(public_origin="http://minilog.test", secure_cookies=True, _env_file=None)
 
 
 def test_compatibility_endpoint_refuses_an_unexpected_schema() -> None:

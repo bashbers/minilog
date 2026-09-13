@@ -15,7 +15,7 @@ Run this checklist from a clean checkout of the exact release commit. Do not pri
 | Permanent Baby/Household deletion and Caregiver erasure, including SQLite sidecar and browser residue | Backend destructive-operation tests plus browser deletion flows |
 | Generated frontend API contract and production PWA build | `make openapi`, a clean Git diff, `make frontend-build`, and service-worker Playwright coverage |
 
-The complete repository gate is:
+The complete repository gate requires Docker or Podman. All browser projects run inside the pinned Playwright container, so host browser binaries and system packages are not required:
 
 ```sh
 make openapi
@@ -35,7 +35,7 @@ docker buildx build --platform linux/arm64 -t minilog-api:release-arm64 backend
 docker buildx build --platform linux/arm64 -t minilog-web:release-arm64 frontend
 ```
 
-An image merely building is insufficient. On each native target, perform the documented fresh-install and upgrade flow with a disposable named volume, confirm both services become healthy, complete setup, create one record of every type, exercise offline creation, export and restore, then remove the disposable volume. Record the exact commit, runtime versions, architecture, and result in the release notes.
+An image merely building is insufficient. On each native target, perform the documented fresh-install and upgrade flow with a disposable named volume, confirm both services become healthy, complete setup, create one record of every type, exercise offline creation, export and restore, then remove the disposable volume. Record the exact commit, runtime versions, architecture, and result in [RELEASE-VERIFICATION.md](./RELEASE-VERIFICATION.md). Do not claim an architecture as supported until its native or emulated runtime matrix is recorded as passing.
 
 ## Live Compose acceptance
 
@@ -50,6 +50,8 @@ curl -fsSI http://127.0.0.1:8080/
 ```
 
 Confirm both services are healthy, only the web port is published, the API is reachable only through `/api`, security headers are present, no setup token appears in logs, and no runtime request leaves the configured origin. Preserve the production data volume during verification.
+
+Run `frontend/scripts/compose-smoke.sh http://127.0.0.1:8080` to check health, headers, and a request body above nginx's former 1 MiB default. To verify proxy-log privacy with a harmless sentinel, stop `api`, request `/api/v1/health/ready?sentinel=MINILOG_LOG_PRIVACY_TEST`, confirm the sentinel is absent from `docker compose logs web`, then start `api` again. Never use real private data as a sentinel.
 
 ## Human recovery drill
 

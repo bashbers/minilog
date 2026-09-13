@@ -69,7 +69,7 @@ Commands use explicit request models and return the resulting entity revision. U
 
 ## Authentication and authorization
 
-The first Owner can be created only with a one-time setup token supplied through an environment variable or Docker secret. Once an Owner exists, normal HTTP setup is disabled. A server-side recovery command can deliberately reset access.
+The first Owner can be created only with a one-time setup token supplied through an environment variable. Once an Owner exists, normal HTTP setup is disabled. A server-side recovery command can deliberately reset the Owner password.
 
 The Owner issues one-use, 24-hour invitation codes. Caregivers choose a local username and password; Minilog has no email dependency or external identity provider. Passwords use Argon2id.
 

@@ -6,7 +6,7 @@ import sys
 import time
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 from sqlalchemy import text
@@ -196,6 +196,23 @@ def test_maintenance_server_returns_retryable_503_for_writes() -> None:
             "api_contract_version": 1,
         },
     )
+
+
+def test_failed_start_stays_in_maintenance_without_restarting_migration(monkeypatch) -> None:
+    server = Mock()
+    thread = Mock()
+    monkeypatch.setattr(sys, "argv", ["minilog-start"])
+    monkeypatch.setattr(cli, "ThreadingHTTPServer", Mock(return_value=server))
+    monkeypatch.setattr(cli.threading, "Thread", Mock(return_value=thread))
+    monkeypatch.setattr(cli, "configured_database_path", Mock(return_value=Path("db.sqlite3")))
+    monkeypatch.setattr(cli, "upgrade_database", Mock(side_effect=MigrationUpgradeError("failed")))
+    exec_process = Mock()
+    monkeypatch.setattr(cli.os, "execvp", exec_process)
+
+    cli.start_main()
+
+    assert thread.join.call_args_list == [call(), call(timeout=5)]
+    exec_process.assert_not_called()
 
 
 def test_private_deletion_fails_before_commit_when_a_reader_prevents_exclusivity() -> None:

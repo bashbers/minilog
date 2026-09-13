@@ -4,6 +4,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -33,6 +34,10 @@ class RequestContextMiddleware:
             return
 
         request = Request(scope)
+        if not request_origin_is_allowed(request):
+            response = JSONResponse(status_code=400, content={"detail": "origin_not_allowed"})
+            await response(scope, receive, send)
+            return
         request_id = str(uuid.uuid4())
         started = time.monotonic()
         response_started = False
@@ -97,6 +102,25 @@ def route_template(request: Request) -> str:
     if request.url.path.startswith("/api/v1/") and not path.startswith("/api/v1/"):
         return f"/api/v1{path}"
     return path
+
+
+def request_origin_is_allowed(request: Request) -> bool:
+    if request.url.path in {"/api/v1/health/live", "/api/v1/health/ready"}:
+        return True
+    configured = urlsplit(str(get_settings().public_origin))
+    if request.headers.get("host", "").lower() != configured.netloc.lower():
+        return False
+    supplied_origin = request.headers.get("origin")
+    if supplied_origin is None:
+        return True
+    candidate = urlsplit(supplied_origin)
+    return (
+        candidate.scheme.lower() == configured.scheme.lower()
+        and candidate.netloc.lower() == configured.netloc.lower()
+        and candidate.path in {"", "/"}
+        and not candidate.query
+        and not candidate.fragment
+    )
 
 
 app = FastAPI(

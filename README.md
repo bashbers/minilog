@@ -23,7 +23,7 @@ Open `http://localhost:8080`, enter the setup token, and create the first Owner.
 
 Podman users can substitute `podman compose` for every `docker compose` command. Local-network HTTP is useful for initial testing, but browsers generally require HTTPS (or `localhost`) for installation, service workers, and reliable offline behavior. Use the HTTPS or private-VPN deployment described in [Deployment](./docs/DEPLOYMENT.md) before relying on the PWA from a phone.
 
-After the first Owner exists, clear `MINILOG_SETUP_TOKEN` in `.env` and recreate the API container. Setup stays disabled by the database state; the token is no longer needed or logged.
+After the first Owner exists, clear `MINILOG_SETUP_TOKEN` in `.env` and recreate both containers with `docker compose up -d --force-recreate api web`. Setup stays disabled by the database state; the token is no longer needed or logged.
 
 For access beyond the local machine, place Minilog behind an HTTPS reverse proxy or a private VPN and set:
 

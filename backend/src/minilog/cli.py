@@ -10,7 +10,7 @@ import sqlite3
 import tempfile
 import threading
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -337,7 +337,10 @@ def start_main() -> None:
             logger.info("database lifecycle status=ready")
     except Exception as exc:
         logger.error("database lifecycle status=failed exception=%s", type(exc).__name__)
-        raise SystemExit(1) from None
+        logger.error("database lifecycle status=maintenance operator_action=required")
+        with suppress(KeyboardInterrupt):
+            thread.join()
+        return
     finally:
         server.shutdown()
         server.server_close()
@@ -355,6 +358,7 @@ def start_main() -> None:
             "--workers",
             "1",
             "--no-access-log",
+            "--no-proxy-headers",
         ],
     )
 

@@ -7,6 +7,7 @@ TEST_DATABASE = Path("/tmp/minilog-pytest.sqlite3")
 os.environ["MINILOG_DATABASE_URL"] = f"sqlite:////{TEST_DATABASE.as_posix().lstrip('/')}"
 os.environ["MINILOG_SETUP_TOKEN"] = "test-setup-token-that-is-long-enough"
 os.environ["MINILOG_SECURE_COOKIES"] = "false"
+os.environ["MINILOG_PUBLIC_ORIGIN"] = "http://test"
 
 from sqlalchemy import text  # noqa: E402
 

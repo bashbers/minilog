@@ -21,10 +21,10 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Podman users substitute `podman compose` in this entire guide. Wait for both services to report healthy, then open the configured origin. On the first screen, enter the setup token and create the Owner. Immediately clear `MINILOG_SETUP_TOKEN` in `.env` and recreate the API service:
+Podman users substitute `podman compose` in this entire guide. Wait for both services to report healthy, then open the configured origin. On the first screen, enter the setup token and create the Owner. Immediately clear `MINILOG_SETUP_TOKEN` in `.env` and recreate both services:
 
 ```sh
-docker compose up -d --force-recreate api
+docker compose up -d --force-recreate api web
 ```
 
 The token is not logged or persisted by Minilog. Keep `.env` out of backups that are shared with others. Do not expose an unclaimed installation to the internet.
@@ -42,7 +42,7 @@ Only `web` publishes a host port. Both services run as non-root users, have heal
 ## Supported hosts
 
 - Linux with Docker Engine and Compose
-- `amd64` and `arm64`
+- `amd64`; `arm64` only for release candidates whose native/emulated result is recorded as passing in [RELEASE-VERIFICATION.md](./RELEASE-VERIFICATION.md)
 - A local filesystem supported by SQLite locking
 
 Network filesystems, shared volumes across API replicas, multiple Uvicorn workers, Kubernetes replicas, and active-active operation are unsupported.
@@ -51,13 +51,13 @@ Network filesystems, shared volumes across API replicas, multiple Uvicorn worker
 
 | Setting | Purpose |
 | --- | --- |
-| Public origin | Cookie, CSRF, and generated-link boundary |
+| `MINILOG_PUBLIC_ORIGIN` | Exact accepted browser Host and Origin boundary |
 | Household default time zone | Initial calendar grouping; editable by Owner |
-| One-time setup token or Docker secret | Claims the first Owner safely |
-| Trusted proxy configuration | Enables forwarded headers only behind known proxies |
+| `MINILOG_SETUP_TOKEN` | One-time environment value that claims the first Owner safely |
+| `MINILOG_SECURE_COOKIES` | Must be `true` exactly when the public origin uses HTTPS |
 | Published local port | Defaults to local-network access |
 
-An application session-signing secret is generated with cryptographic randomness and persisted inside the protected data volume if not explicitly supplied. It is never printed. Configuration validation fails closed on unsafe or contradictory production settings.
+Sessions and CSRF values are opaque random tokens whose hashes are stored in SQLite; Minilog has no signing-secret or Docker-secret setting. Configuration rejects an HTTPS origin without Secure cookies and rejects Secure cookies on an HTTP origin. Requests outside the configured Host/Origin boundary fail before routing, except the two internal health endpoints. Forwarded headers are stripped by nginx and ignored by Uvicorn.
 
 ## First run
 
@@ -67,7 +67,7 @@ An application session-signing secret is generated with cryptographic randomness
 4. Minilog invalidates setup and the operator removes the token from active configuration.
 5. The Owner creates the Household settings and first Baby.
 
-Set `MINILOG_SETUP_TOKEN=` after step 3 and recreate the API container. Compose accepts the empty value after setup; an empty token cannot claim a fresh deployment.
+Set `MINILOG_SETUP_TOKEN=` after step 3 and recreate both containers. Compose accepts the empty value after setup; an empty token cannot claim a fresh deployment.
 
 The setup guide warns operators not to expose an unclaimed deployment publicly.
 
@@ -100,7 +100,7 @@ minilog.example.com {
 }
 ```
 
-Use a valid certificate and restrict DNS/firewall exposure to the intended caregivers. Minilog deliberately starts Uvicorn with proxy-header trust disabled; security decisions do not depend on client-supplied forwarded headers. The configured `MINILOG_PUBLIC_ORIGIN` is the canonical browser boundary.
+Use a valid certificate and restrict DNS/firewall exposure to the intended caregivers. Minilog starts Uvicorn with proxy-header trust disabled; security decisions do not depend on client-supplied forwarded headers. The configured `MINILOG_PUBLIC_ORIGIN` is enforced against the browser-visible Host and any supplied Origin header.
 
 ### Private VPN
 
@@ -121,6 +121,19 @@ docker compose exec api minilog-backup
 ```
 
 The command prints the snapshot path under `/data/backups`. Copy it to encrypted storage controlled by the household.
+
+For example, replace `<printed-filename>` with the basename printed above:
+
+```sh
+mkdir -p ./private-minilog-backups
+chmod 700 ./private-minilog-backups
+docker compose cp api:/data/backups/<printed-filename> ./private-minilog-backups/<printed-filename>
+chmod 600 ./private-minilog-backups/<printed-filename>
+docker compose exec -T api sha256sum /data/backups/<printed-filename>
+sha256sum ./private-minilog-backups/<printed-filename>
+```
+
+The two SHA-256 values must match before the copy is moved to encrypted off-host storage. With Podman, obtain the container ID using `podman compose ps -q api`, then use `podman cp <container-id>:/data/backups/<printed-filename> ./private-minilog-backups/<printed-filename>`; the permission and checksum commands are unchanged.
 
 Restore is an explicit offline maintenance operation:
 
@@ -154,7 +167,7 @@ The archive is fully checksum-validated, must match the running database revisio
 
 ### Minilog ZIP format version 2
 
-The ZIP is a private, lossless application export. Its root `manifest.json` contains:
+The ZIP is a private, lossless application export. On restore, static profile pictures are decoded and re-encoded as metadata-free lossless WebP: displayed RGB pixels are preserved exactly, while compression-container bytes and their content hash may change to ensure hidden payloads cannot survive. Its root `manifest.json` contains:
 
 - `format`: the fixed value `minilog-export`;
 - `format_version`: currently `2`;
@@ -168,7 +181,7 @@ Restore accepts only the exact declared member set. It rejects oversized or malf
 
 ## Upgrades
 
-Images use explicit versions; automatic unattended application updates are not enabled. On every API start, `minilog-start` serves a temporary maintenance response, validates the current schema, and skips Alembic when the expected revision is already installed. An upgrade:
+Images are built from the reviewed source checkout; automatic unattended application updates are not enabled. The frontend dependency graph is locked and the containerized Python graph is constrained to exact versions. Upstream base-image tags are not digest-pinned, so record the built image IDs and do not rebuild an already accepted release without repeating the release checks. On every API start, `minilog-start` serves a temporary maintenance response, validates the current schema, and skips Alembic when the expected revision is already installed. An upgrade:
 
 1. Pulls matching `web` and `api` versions.
 2. Enters API maintenance mode.
@@ -177,7 +190,7 @@ Images use explicit versions; automatic unattended application updates are not e
 5. Runs database integrity and application readiness checks.
 6. Starts the web container only against a compatible API.
 
-Migration failure restores the verified snapshot before the container exits and leaves only a sanitized exception class in the lifecycle diagnostic. A failed first migration removes its incomplete database. The frontend polls the compatibility endpoint and shows maintenance or version-mismatch state rather than running against an incompatible contract.
+Migration failure restores the verified snapshot and keeps the API in maintenance mode so the restart policy cannot repeat the migration or create unbounded snapshots. It logs only a sanitized exception class and an operator-action marker. A failed first migration removes its incomplete database. The frontend polls the compatibility endpoint and shows maintenance or version-mismatch state rather than running against an incompatible contract.
 
 For the source-distributed release, upgrade from a clean checkout while preserving the existing `.env` and named volume:
 
@@ -185,16 +198,16 @@ For the source-distributed release, upgrade from a clean checkout while preservi
 docker compose exec api minilog-backup
 git fetch --tags
 git checkout <reviewed-release-tag>
-docker compose build --pull
+docker compose build
 docker compose up -d
 docker compose ps
 ```
 
-Read the release notes before choosing the tag. Do not run `docker compose down --volumes` during an upgrade. Startup takes and verifies an additional pre-migration snapshot automatically whenever the schema revision changes. If the API fails to become healthy, leave it stopped, inspect the sanitized lifecycle log, and follow the offline restore procedure above.
+Read the release notes before choosing the tag. Do not run `docker compose down --volumes` during an upgrade. Startup takes and verifies an additional pre-migration snapshot automatically whenever the schema revision changes. If the API fails to become healthy, it remains in maintenance without retrying the migration. Run `docker compose stop api`, inspect the sanitized lifecycle log, and follow the offline restore procedure above.
 
 ## Recovery and lockout
 
-A local API-container command can reset the Owner password or issue a new controlled recovery token. It requires direct server access, revokes sessions, never prints stored data, and is covered by recovery tests.
+A local API-container command can reset the Owner password. It requires direct server access, revokes sessions, never prints stored data, and is covered by recovery tests.
 
 ```sh
 docker compose exec api minilog-reset-owner
@@ -212,6 +225,7 @@ The production web response should include Content Security Policy, Permissions 
 ```sh
 curl -fsSI http://127.0.0.1:8080/
 curl -fsS http://127.0.0.1:8080/api/v1/health/ready
+frontend/scripts/compose-smoke.sh http://127.0.0.1:8080
 ```
 
 The readiness response contains no Household data. API access logs are disabled at the server; Minilog emits only allowlisted structured request and lifecycle fields described in [SECURITY.md](./SECURITY.md).
@@ -234,6 +248,7 @@ This does not erase copies already placed in backups, exports, filesystem snapsh
 - Minilog does not manage DNS, certificates, VPN accounts, host encryption, firewalls, off-host backup retention, or monitoring.
 - Application data is not encrypted inside SQLite. Use encrypted host storage and encrypt every exported copy.
 - Plain LAN HTTP is not a dependable installable/offline PWA origin on phones.
+- Source-built release images are not byte-reproducible because upstream base-image tags are not digest-pinned; every rebuilt image requires the release matrix and recorded image IDs.
 - Browser and filesystem deletion cannot guarantee erasure from device snapshots, flash wear-leveling, or copies outside Minilog's control.
 
 The release verification matrix is maintained in [RELEASE-CHECKLIST.md](./RELEASE-CHECKLIST.md).

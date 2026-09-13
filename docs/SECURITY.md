@@ -32,7 +32,7 @@ Minilog does not claim to protect data from a malicious server administrator, a 
 | Parser abuse | Bounded file size, streaming/limited parsing, no execution, preview before commit |
 | Image bombs and metadata leakage | Bounded dimensions and bytes, safe decode, metadata stripping, derivative-only storage |
 | Sensitive logs | Allowlisted structured fields; payload and secret redaction |
-| Supply-chain runtime calls | Bundled assets, pinned dependencies, CSP, automated no-third-party-request test |
+| Supply-chain runtime calls | Bundled assets, locked frontend and constrained container dependencies, CSP, automated no-third-party-request test |
 
 ## Data at rest
 
@@ -44,7 +44,7 @@ The browser stores up to seven recent days for the selected Baby, the displayed 
 
 ## Authentication details
 
-- Setup, invitation, session, CSRF, and recovery tokens use cryptographically secure randomness.
+- Invitation, session, and CSRF tokens use cryptographically secure randomness; the operator generates the one-time setup token.
 - Only token hashes are persisted.
 - Invitation tokens expire after 24 hours and are single-use.
 - Sessions use a 30-day sliding expiry and can be revoked by device.

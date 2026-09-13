@@ -3,9 +3,9 @@ FROM docker.io/library/python:3.12-slim AS build
 ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /build
-COPY pyproject.toml README.md ./
+COPY pyproject.toml constraints.txt README.md ./
 COPY src ./src
-RUN python -m pip wheel --wheel-dir /wheels .
+RUN python -m pip wheel --constraint constraints.txt --wheel-dir /wheels .
 
 FROM docker.io/library/python:3.12-slim AS runtime
 

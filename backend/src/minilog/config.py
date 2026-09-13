@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,17 @@ class Settings(BaseSettings):
         if value and len(value) < 20:
             raise ValueError("setup token must be at least 20 characters")
         return value
+
+    @model_validator(mode="after")
+    def validate_public_origin(self) -> "Settings":
+        origin = self.public_origin
+        if origin.path not in {"", "/"} or origin.query or origin.fragment:
+            raise ValueError("public origin must not contain a path, query, or fragment")
+        if (origin.scheme == "https") != self.secure_cookies:
+            raise ValueError(
+                "secure cookies must be enabled exactly when the public origin is HTTPS"
+            )
+        return self
 
 
 @lru_cache
