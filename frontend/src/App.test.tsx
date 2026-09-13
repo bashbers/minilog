@@ -1,4 +1,9 @@
-import { MutationObserver, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationObserver,
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+} from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -97,4 +102,23 @@ test("unauthenticated cleanup aborts delayed private queries before the final pu
   expect(aborted).toBe(true);
   expect(lateWrite).toBe(false);
   expect(queryClient.getQueryData(["records", "revoked-baby"])).toBeUndefined();
+});
+
+test("failed browser cleanup still clears the mounted caregiver observer", async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const observer = new QueryObserver(queryClient, {
+    queryKey: ["me"],
+    queryFn: async () => { throw new Error("revoked"); },
+  });
+  const unsubscribe = observer.subscribe(() => undefined);
+  queryClient.setQueryData(["me"], { id: "private-caregiver", display_name: "Caregiver" });
+  expect(observer.getCurrentResult().data).toBeDefined();
+  vi.stubGlobal("caches", { delete: vi.fn().mockRejectedValue(new Error("blocked")) });
+
+  await expect(clearUnauthenticatedClientData(queryClient)).rejects.toThrow(
+    "Browser storage cleanup is incomplete",
+  );
+
+  expect(observer.getCurrentResult().data).toBeUndefined();
+  unsubscribe();
 });

@@ -455,6 +455,35 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="unsupported WebP chunks"):
         restore_minilog_export(chunked_picture_path, TEST_DATABASE)
 
+    original_chunk_size = int.from_bytes(original_picture[16:20], "little")
+    hidden_payload = b"private bytes hidden after the VP8 bitstream"
+    hidden_chunk_data = original_picture[20 : 20 + original_chunk_size] + hidden_payload
+    hidden_chunk = (
+        b"VP8 "
+        + len(hidden_chunk_data).to_bytes(4, "little")
+        + hidden_chunk_data
+        + (b"\x00" if len(hidden_chunk_data) % 2 else b"")
+    )
+    hidden_picture = (
+        b"RIFF"
+        + (4 + len(hidden_chunk)).to_bytes(4, "little")
+        + b"WEBP"
+        + hidden_chunk
+    )
+    sanitized_picture = exports.validate_profile_picture(
+        {
+            "content_hash": hashlib.sha256(hidden_picture).hexdigest(),
+            "width": 256,
+            "height": 256,
+        },
+        hidden_picture,
+    )
+    assert hidden_payload not in sanitized_picture
+    with Image.open(io.BytesIO(original_picture)) as original_image, Image.open(
+        io.BytesIO(sanitized_picture)
+    ) as sanitized_image:
+        assert sanitized_image.convert("RGB").tobytes() == original_image.convert("RGB").tobytes()
+
     omitted_source_path = tmp_path / "omitted-source.zip"
     write_self_consistent_export(omitted_source_path, members, omissions={import_name})
     with pytest.raises(RuntimeError, match="source file is missing"):
@@ -608,9 +637,18 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "Original export value"
         )
-        assert connection.execute("SELECT webp_bytes FROM baby_profile_pictures").fetchone()[0] == (
-            original_picture
-        )
+        restored_picture = connection.execute(
+            "SELECT webp_bytes FROM baby_profile_pictures"
+        ).fetchone()[0]
+        restored_picture_hash = connection.execute(
+            "SELECT content_hash FROM baby_profile_pictures"
+        ).fetchone()[0]
+        assert restored_picture_hash == hashlib.sha256(restored_picture).hexdigest()
+        with Image.open(io.BytesIO(original_picture)) as original_image, Image.open(
+            io.BytesIO(restored_picture)
+        ) as restored_image:
+            original_pixels = original_image.convert("RGB").tobytes()
+            assert restored_image.convert("RGB").tobytes() == original_pixels
         assert connection.execute("SELECT source_contents FROM import_batches").fetchone()[0] == (
             PIYOLOG_EXPORT
         )
@@ -631,8 +669,13 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
 
     with SessionLocal() as db:
         restored_members = archive_members(build_minilog_export(db))
-    assert restored_members["data.json"] == members["data.json"]
-    assert restored_members[picture_name] == original_picture
+    original_data = json.loads(members["data.json"])
+    restored_data = json.loads(restored_members["data.json"])
+    original_data["tables"]["baby_profile_pictures"][0]["content_hash"] = (
+        restored_data["tables"]["baby_profile_pictures"][0]["content_hash"]
+    )
+    assert restored_data == original_data
+    assert restored_members[picture_name] == restored_picture
     assert restored_members[import_name] == PIYOLOG_EXPORT
 
 

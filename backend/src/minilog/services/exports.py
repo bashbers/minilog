@@ -414,7 +414,7 @@ def insert_rows(connection: sqlite3.Connection, table: str, rows: list[dict]) ->
         )
 
 
-def validate_profile_picture(row: dict, contents: bytes) -> None:
+def validate_profile_picture(row: dict, contents: bytes) -> bytes:
     expected_hash = row.get("content_hash")
     if not isinstance(expected_hash, str) or hashlib.sha256(contents).hexdigest() != expected_hash:
         raise RuntimeError("A profile picture does not match its stored identity.")
@@ -427,6 +427,7 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
             if any(image.info.get(key) for key in ("exif", "xmp", "icc_profile")):
                 raise RuntimeError("A profile picture contains forbidden metadata.")
             image.load()
+            pixels = image.convert("RGB")
     except (UnidentifiedImageError, OSError) as exc:
         raise RuntimeError("A profile picture is not a valid WebP image.") from exc
     if (
@@ -434,7 +435,7 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
         or contents[:4] != b"RIFF"
         or int.from_bytes(contents[4:8], "little") != len(contents) - 8
         or contents[8:12] != b"WEBP"
-        or contents[12:16] != b"VP8 "
+        or contents[12:16] not in {b"VP8 ", b"VP8L"}
     ):
         raise RuntimeError("A profile picture contains unsupported WebP chunks.")
     chunk_size = int.from_bytes(contents[16:20], "little")
@@ -442,6 +443,9 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
         raise RuntimeError("A profile picture contains unsupported WebP chunks.")
     if row.get("width") != 256 or row.get("height") != 256:
         raise RuntimeError("A profile picture has invalid stored dimensions.")
+    sanitized = io.BytesIO()
+    pixels.save(sanitized, format="WEBP", lossless=True, method=6)
+    return sanitized.getvalue()
 
 
 def validate_restored_domain(database_path: Path) -> None:
@@ -635,7 +639,10 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
                             row["webp_bytes"] = files.get(picture_name)
                             if not isinstance(row["webp_bytes"], bytes):
                                 raise RuntimeError("A profile picture file is missing.")
-                            validate_profile_picture(row, row["webp_bytes"])
+                            row["webp_bytes"] = validate_profile_picture(
+                                row, row["webp_bytes"]
+                            )
+                            row["content_hash"] = hashlib.sha256(row["webp_bytes"]).hexdigest()
                         if table == "import_batches":
                             batch_id = row.get("id")
                             retained = row.pop("source_retained", None)

@@ -94,10 +94,11 @@ export async function clearUnauthenticatedClientData(queryClient: QueryClient) {
   const isPrivateQuery = ({ queryKey }: { queryKey: readonly unknown[] }) =>
     !["compatibility", "setup"].includes(String(queryKey[0]));
   localStorage.removeItem("selectedBaby");
+  const meReset = queryClient.resetQueries({ queryKey: ["me"], exact: true });
   const cancellation = queryClient.cancelQueries({ predicate: isPrivateQuery });
   queryClient.getMutationCache().clear();
   queryClient.removeQueries({ predicate: isPrivateQuery });
-  await cancellation;
+  await Promise.all([meReset, cancellation]);
   await clearLocalData();
 }
 
