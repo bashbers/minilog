@@ -419,6 +419,42 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="exactly one frame"):
         restore_minilog_export(animated_picture_path, TEST_DATABASE)
 
+    private_chunk_payload = b"private profile-picture residue"
+    private_chunk = (
+        b"PRIV"
+        + len(private_chunk_payload).to_bytes(4, "little")
+        + private_chunk_payload
+        + (b"\x00" if len(private_chunk_payload) % 2 else b"")
+    )
+    original_picture = members[picture_name]
+    chunked_picture_bytes = (
+        b"RIFF"
+        + (len(original_picture) - 8 + len(private_chunk)).to_bytes(4, "little")
+        + original_picture[8:]
+        + private_chunk
+    )
+    chunked_picture_payload = json.loads(members["data.json"])
+    chunked_picture_payload["tables"]["baby_profile_pictures"][0]["content_hash"] = (
+        hashlib.sha256(chunked_picture_bytes).hexdigest()
+    )
+    chunked_picture_data = json.dumps(
+        chunked_picture_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    chunked_picture_path = tmp_path / "private-chunk-picture.zip"
+    write_self_consistent_export(
+        chunked_picture_path,
+        members,
+        replacements={
+            "data.json": chunked_picture_data,
+            picture_name: chunked_picture_bytes,
+        },
+    )
+    with pytest.raises(RuntimeError, match="unsupported WebP chunks"):
+        restore_minilog_export(chunked_picture_path, TEST_DATABASE)
+
     omitted_source_path = tmp_path / "omitted-source.zip"
     write_self_consistent_export(omitted_source_path, members, omissions={import_name})
     with pytest.raises(RuntimeError, match="source file is missing"):

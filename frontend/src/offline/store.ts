@@ -51,7 +51,8 @@ export interface FlushPendingResult {
   failed: number;
 }
 
-export async function flushPending(): Promise<FlushPendingResult> {
+export async function flushPending(signal?: AbortSignal): Promise<FlushPendingResult> {
+  signal?.throwIfAborted();
   if (!navigator.onLine) return { completed: 0, failed: 0 };
   const db = await database;
   const pending = await db.getAll("pending");
@@ -60,10 +61,13 @@ export async function flushPending(): Promise<FlushPendingResult> {
   for (const item of pending) {
     if (item.status === "failed") continue;
     try {
-      await api.createRecord(item.payload, item.mutationId);
+      signal?.throwIfAborted();
+      await api.createRecord(item.payload, item.mutationId, signal);
+      signal?.throwIfAborted();
       await db.delete("pending", item.mutationId);
       completed += 1;
     } catch (error) {
+      signal?.throwIfAborted();
       if (isTemporaryApiFailure(error)) break;
       await db.put("pending", {
         ...item,
@@ -113,8 +117,9 @@ export async function getSyncCursor() {
   return (await db.get("meta", "syncCursor")) ?? 0;
 }
 
-export async function setSyncCursor(cursor: number) {
+export async function setSyncCursor(cursor: number, signal?: AbortSignal) {
   const db = await database;
+  signal?.throwIfAborted();
   await db.put("meta", cursor, "syncCursor");
 }
 

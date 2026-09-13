@@ -429,6 +429,17 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
             image.load()
     except (UnidentifiedImageError, OSError) as exc:
         raise RuntimeError("A profile picture is not a valid WebP image.") from exc
+    if (
+        len(contents) < 20
+        or contents[:4] != b"RIFF"
+        or int.from_bytes(contents[4:8], "little") != len(contents) - 8
+        or contents[8:12] != b"WEBP"
+        or contents[12:16] != b"VP8 "
+    ):
+        raise RuntimeError("A profile picture contains unsupported WebP chunks.")
+    chunk_size = int.from_bytes(contents[16:20], "little")
+    if 20 + chunk_size + (chunk_size % 2) != len(contents):
+        raise RuntimeError("A profile picture contains unsupported WebP chunks.")
     if row.get("width") != 256 or row.get("height") != 256:
         raise RuntimeError("A profile picture has invalid stored dimensions.")
 

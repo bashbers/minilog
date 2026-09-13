@@ -9,15 +9,20 @@ export function useForegroundSync() {
 
   useEffect(() => {
     let active = true;
+    const controllers = new Set<AbortController>();
     const sync = async () => {
       if (!active || document.visibilityState !== "visible" || !navigator.onLine) return;
+      const controller = new AbortController();
+      controllers.add(controller);
       try {
-        const result = await synchronize();
-        if (result.changed) {
+        const result = await synchronize(controller.signal);
+        if (active && result.changed) {
           await invalidateCareRecordQueries(queryClient);
         }
       } catch {
         // The next foreground poll retries. Care data never enters console output.
+      } finally {
+        controllers.delete(controller);
       }
     };
     const foreground = () => void sync();
@@ -27,6 +32,8 @@ export function useForegroundSync() {
     void sync();
     return () => {
       active = false;
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", foreground);
       window.removeEventListener("online", foreground);

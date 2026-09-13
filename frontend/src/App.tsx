@@ -59,8 +59,10 @@ function SessionGate() {
 
   useEffect(() => {
     if (sessionInvalid && cleanupState === "idle") setCleanupState("required");
-    if (!sessionInvalid && cleanupState === "complete") setCleanupState("idle");
-  }, [cleanupState, sessionInvalid]);
+    if (cleanupState === "complete" && me.isSuccess && me.data && !setup.data?.setup_required) {
+      setCleanupState("idle");
+    }
+  }, [cleanupState, me.data, me.isSuccess, sessionInvalid, setup.data?.setup_required]);
 
   useEffect(() => {
     if (cleanupState !== "required") return;
@@ -89,14 +91,13 @@ function SessionGate() {
 }
 
 export async function clearUnauthenticatedClientData(queryClient: QueryClient) {
+  const isPrivateQuery = ({ queryKey }: { queryKey: readonly unknown[] }) =>
+    !["compatibility", "setup"].includes(String(queryKey[0]));
   localStorage.removeItem("selectedBaby");
+  const cancellation = queryClient.cancelQueries({ predicate: isPrivateQuery });
   queryClient.getMutationCache().clear();
-  void queryClient.resetQueries({ queryKey: ["me"], exact: true }).catch(() => undefined);
-  queryClient.removeQueries({
-    predicate: ({ queryKey }) => !["compatibility", "setup"].includes(
-      String(queryKey[0]),
-    ),
-  });
+  queryClient.removeQueries({ predicate: isPrivateQuery });
+  await cancellation;
   await clearLocalData();
 }
 

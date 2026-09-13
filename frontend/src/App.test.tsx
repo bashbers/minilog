@@ -68,3 +68,33 @@ test("unauthenticated cleanup clears memory immediately and can retry browser st
   await expect(clearUnauthenticatedClientData(queryClient)).resolves.toBeUndefined();
   expect(deleteCache).toHaveBeenCalledTimes(2);
 });
+
+test("unauthenticated cleanup aborts delayed private queries before the final purge", async () => {
+  const queryClient = new QueryClient();
+  let aborted = false;
+  let lateWrite = false;
+  const inFlight = queryClient.fetchQuery({
+    queryKey: ["records", "revoked-baby"],
+    queryFn: ({ signal }) => new Promise<string>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        lateWrite = true;
+        resolve("private records");
+      }, 50);
+      signal.addEventListener("abort", () => {
+        aborted = true;
+        window.clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    }),
+  }).catch(() => undefined);
+  vi.stubGlobal("caches", { delete: vi.fn().mockResolvedValue(true) });
+
+  await vi.waitFor(() => expect(queryClient.isFetching()).toBe(1));
+  await expect(clearUnauthenticatedClientData(queryClient)).resolves.toBeUndefined();
+  await inFlight;
+  await new Promise((resolve) => window.setTimeout(resolve, 60));
+
+  expect(aborted).toBe(true);
+  expect(lateWrite).toBe(false);
+  expect(queryClient.getQueryData(["records", "revoked-baby"])).toBeUndefined();
+});

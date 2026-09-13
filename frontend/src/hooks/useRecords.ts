@@ -18,16 +18,19 @@ import {
 export function useRecords(babyId: string) {
   return useQuery({
     queryKey: ["records", babyId],
-    queryFn: async (): Promise<TimelineRecord[]> => {
+    queryFn: async ({ signal }): Promise<TimelineRecord[]> => {
       const pending = await pendingForBaby(babyId);
       try {
-        const page = await api.records(babyId);
+        signal.throwIfAborted();
+        const page = await api.records(babyId, {}, signal);
+        signal.throwIfAborted();
         await cacheRecords(babyId, page);
         return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId, item.status, item.errorCode)), ...page.items]
           .sort(
             (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
           );
       } catch (error) {
+        signal.throwIfAborted();
         const cached = await cachedRecords(babyId);
         if (!cached) throw error;
         return [...pending.map((item) => queuedTimelineRecord(item.payload, item.mutationId, item.status, item.errorCode)), ...cached.items]

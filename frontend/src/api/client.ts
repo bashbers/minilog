@@ -149,14 +149,15 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ confirmation }),
     }),
-  records: (babyId: string, options: RecordListOptions = {}) =>
-    request<CareRecordPage>(careRecordListPath(babyId, options)),
+  records: (babyId: string, options: RecordListOptions = {}, signal?: AbortSignal) =>
+    request<CareRecordPage>(careRecordListPath(babyId, options), { signal }),
   allRecords: allCareRecords,
-  createRecord: (payload: CareRecordCreate, mutationId: string) =>
+  createRecord: (payload: CareRecordCreate, mutationId: string, signal?: AbortSignal) =>
     request<CareRecord>("/care-records", {
       method: "POST",
       headers: { "X-Mutation-ID": mutationId },
       body: JSON.stringify(payload),
+      signal,
     }),
   updateRecord: (id: string, expectedRevision: number, payload: CareRecordCreate) =>
     request<CareRecord>(`/care-records/${id}`, {
@@ -165,7 +166,8 @@ export const api = {
     }),
   deleteRecord: (id: string, revision: number) =>
     request<void>(`/care-records/${id}?expected_revision=${revision}`, { method: "DELETE" }),
-  sync: (after: number) => request<SyncPage>(`/sync?after=${after}`),
+  sync: (after: number, signal?: AbortSignal) =>
+    request<SyncPage>(`/sync?after=${after}`, { signal }),
   setProfilePicture: async (babyId: string, file: File) => {
     const body = new FormData();
     body.set("image", file);
