@@ -8,6 +8,7 @@ import stat
 import warnings
 import zipfile
 from collections.abc import Awaitable, Callable
+from contextlib import closing
 from pathlib import Path
 from uuid import uuid4
 
@@ -277,10 +278,11 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
 
     archive_path = tmp_path / "export.zip"
     archive_path.write_bytes(archive_bytes)
-    with sqlite3.connect(TEST_DATABASE) as connection:
+    with closing(sqlite3.connect(TEST_DATABASE)) as connection:
         connection.execute("UPDATE note_records SET body = 'RESTORE_PRIVATE_MARKER_C3F971'")
         connection.execute("UPDATE baby_profile_pictures SET webp_bytes = X'00'")
         connection.execute("UPDATE import_batches SET source_contents = X'01'")
+        connection.commit()
     engine.dispose()
 
     invalid_payload = json.loads(members["data.json"])
@@ -294,7 +296,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     )
     with pytest.raises(RuntimeError, match="invalid columns"):
         restore_minilog_export(invalid_path, TEST_DATABASE)
-    with sqlite3.connect(TEST_DATABASE) as connection:
+    with closing(sqlite3.connect(TEST_DATABASE)) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "RESTORE_PRIVATE_MARKER_C3F971"
         )
@@ -355,6 +357,35 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     )
     with pytest.raises(RuntimeError, match="stored identity"):
         restore_minilog_export(mismatched_picture_path, TEST_DATABASE)
+
+    metadata_picture = io.BytesIO()
+    private_exif = Image.Exif()
+    private_exif[0x010E] = "private original description"
+    Image.new("RGB", (256, 256), "#f0a07a").save(
+        metadata_picture, "WEBP", exif=private_exif
+    )
+    metadata_picture_bytes = metadata_picture.getvalue()
+    metadata_picture_payload = json.loads(members["data.json"])
+    metadata_picture_payload["tables"]["baby_profile_pictures"][0]["content_hash"] = (
+        hashlib.sha256(metadata_picture_bytes).hexdigest()
+    )
+    metadata_picture_data = json.dumps(
+        metadata_picture_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    metadata_picture_path = tmp_path / "metadata-picture.zip"
+    write_self_consistent_export(
+        metadata_picture_path,
+        members,
+        replacements={
+            "data.json": metadata_picture_data,
+            picture_name: metadata_picture_bytes,
+        },
+    )
+    with pytest.raises(RuntimeError, match="forbidden metadata"):
+        restore_minilog_export(metadata_picture_path, TEST_DATABASE)
 
     omitted_source_path = tmp_path / "omitted-source.zip"
     write_self_consistent_export(omitted_source_path, members, omissions={import_name})
@@ -497,16 +528,15 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
     with pytest.raises(RuntimeError, match="invalid care-record value"):
         restore_minilog_export(overlapping_path, TEST_DATABASE)
 
-    with sqlite3.connect(TEST_DATABASE) as connection:
+    with closing(sqlite3.connect(TEST_DATABASE)) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "RESTORE_PRIVATE_MARKER_C3F971"
         )
         assert connection.execute("SELECT webp_bytes FROM baby_profile_pictures").fetchone()[0] == (
             b"\x00"
         )
-
     recovery = restore_minilog_export(archive_path, TEST_DATABASE)
-    with sqlite3.connect(TEST_DATABASE) as connection:
+    with closing(sqlite3.connect(TEST_DATABASE)) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "Original export value"
         )
@@ -516,7 +546,7 @@ def test_checked_export_and_restore_round_trip_every_supported_domain_asset(tmp_
         assert connection.execute("SELECT source_contents FROM import_batches").fetchone()[0] == (
             PIYOLOG_EXPORT
         )
-    with sqlite3.connect(recovery) as connection:
+    with closing(sqlite3.connect(recovery)) as connection:
         assert connection.execute("SELECT body FROM note_records").fetchone()[0] == (
             "RESTORE_PRIVATE_MARKER_C3F971"
         )

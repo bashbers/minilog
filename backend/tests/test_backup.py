@@ -74,6 +74,29 @@ def test_snapshot_install_removes_an_orphaned_rollback_journal(tmp_path) -> None
     assert not rollback_journal.exists()
 
 
+def test_failed_snapshot_replace_leaves_the_old_database_self_contained(
+    tmp_path, monkeypatch
+) -> None:
+    live = tmp_path / "minilog.sqlite3"
+    snapshot = tmp_path / "snapshot.sqlite3"
+    create_database(live, "committed old value")
+    create_database(snapshot, "replacement value")
+    real_replace = os.replace
+
+    def fail_live_replace(source, destination) -> None:
+        if Path(destination) == live:
+            raise OSError("simulated atomic replacement failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(cli.os, "replace", fail_live_replace)
+
+    with pytest.raises(OSError, match="simulated atomic replacement failure"):
+        install_verified_snapshot(snapshot, live)
+
+    assert marker(live) == "committed old value"
+    assert not any(Path(f"{live}{suffix}").exists() for suffix in cli.DATABASE_SIDECAR_SUFFIXES)
+
+
 def test_upgrade_takes_verified_snapshot_and_reaches_expected_revision(tmp_path) -> None:
     live = tmp_path / "minilog.sqlite3"
     create_database(live, "before", revision="old-revision")

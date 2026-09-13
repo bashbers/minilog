@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from minilog.cli import (
     DATABASE_SIDECAR_SUFFIXES,
     backup_database,
+    prepare_database_for_replacement,
     read_only_connection,
     verify_database,
 )
@@ -421,6 +422,8 @@ def validate_profile_picture(row: dict, contents: bytes) -> None:
         with Image.open(io.BytesIO(contents)) as image:
             if image.format != "WEBP" or image.size != (256, 256):
                 raise RuntimeError("A profile picture is not a supported Minilog derivative.")
+            if any(image.info.get(key) for key in ("exif", "xmp", "icc_profile")):
+                raise RuntimeError("A profile picture contains forbidden metadata.")
             image.load()
     except (UnidentifiedImageError, OSError) as exc:
         raise RuntimeError("A profile picture is not a valid WebP image.") from exc
@@ -657,6 +660,7 @@ def restore_minilog_export(archive_path: Path, database_path: Path) -> Path:
                 raise
         validate_restored_domain(temporary)
         verify_database(temporary)
+        prepare_database_for_replacement(database_path)
         for suffix in DATABASE_SIDECAR_SUFFIXES:
             Path(f"{database_path}{suffix}").unlink(missing_ok=True)
         os.replace(temporary, database_path)

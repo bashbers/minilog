@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { App } from "./App";
+import { App, clearUnauthenticatedClientData } from "./App";
 
 function renderApp() {
   const queryClient = new QueryClient({
@@ -41,4 +41,25 @@ test("refuses to run against a different API contract version", async () => {
   expect(await screen.findByRole("heading", {
     name: "Minilog versions do not match",
   })).toBeVisible();
+});
+
+test("unauthenticated cleanup clears memory immediately and can retry browser storage", async () => {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["records", "private-baby"], [{ body: "private care" }]);
+  queryClient.setQueryData(["me"], { id: "session-state" });
+  localStorage.setItem("selectedBaby", "private-baby");
+  const deleteCache = vi.fn()
+    .mockRejectedValueOnce(new Error("Cache Storage temporarily blocked"))
+    .mockResolvedValueOnce(true);
+  vi.stubGlobal("caches", { delete: deleteCache });
+
+  await expect(clearUnauthenticatedClientData(queryClient)).rejects.toThrow(
+    "Browser storage cleanup is incomplete",
+  );
+  expect(localStorage.getItem("selectedBaby")).toBeNull();
+  expect(queryClient.getQueryData(["records", "private-baby"])).toBeUndefined();
+  expect(queryClient.getQueryData(["me"])).toBeDefined();
+
+  await expect(clearUnauthenticatedClientData(queryClient)).resolves.toBeUndefined();
+  expect(deleteCache).toHaveBeenCalledTimes(2);
 });

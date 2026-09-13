@@ -130,12 +130,37 @@ test("Baby-list reconciliation removes local data for remotely deleted Babies", 
   await cacheRecords(deletedBabyId, { items: [], next_cursor: null });
   await cacheRecords(retainedBabyId, { items: [], next_cursor: null });
 
-  await reconcileBabyLocalData([retainedBabyId]);
+  await reconcileBabyLocalData([retainedBabyId], retainedBabyId);
 
   expect(await pendingForBaby(deletedBabyId)).toEqual([]);
   expect(await cachedRecords(deletedBabyId)).toBeUndefined();
   expect(await pendingForBaby(retainedBabyId)).toHaveLength(1);
   expect(await cachedRecords(retainedBabyId)).toEqual({ items: [], next_cursor: null });
+});
+
+test("Baby reconciliation caches records only for the selected Baby but retains pending writes", async () => {
+  await clearLocalData();
+  const selectedBabyId = crypto.randomUUID();
+  const otherBabyId = crypto.randomUUID();
+  const payload = (babyId: string): CareRecordCreate => ({
+    id: crypto.randomUUID(),
+    baby_id: babyId,
+    record_type: "note",
+    occurred_at: new Date().toISOString(),
+    local_offset_minutes: 0,
+    body: "Pending care",
+  });
+  await queueCreation(payload(selectedBabyId), "selected-pending");
+  await queueCreation(payload(otherBabyId), "other-pending");
+  await cacheRecords(selectedBabyId, { items: [], next_cursor: null });
+  await cacheRecords(otherBabyId, { items: [], next_cursor: null });
+
+  await reconcileBabyLocalData([selectedBabyId, otherBabyId], selectedBabyId);
+
+  expect(await cachedRecords(selectedBabyId)).toBeDefined();
+  expect(await cachedRecords(otherBabyId)).toBeUndefined();
+  expect(await pendingForBaby(selectedBabyId)).toHaveLength(1);
+  expect(await pendingForBaby(otherBabyId)).toHaveLength(1);
 });
 
 test("profile picture changes remove every version from the managed runtime cache", async () => {

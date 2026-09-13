@@ -136,7 +136,10 @@ export async function retainCurrentProfilePictureCache(pictureUrl: string | null
   }
 }
 
-export async function reconcileBabyLocalData(currentBabyIds: string[]) {
+export async function reconcileBabyLocalData(
+  currentBabyIds: string[],
+  selectedBabyId: string | null,
+) {
   try {
     const retained = new Set(currentBabyIds);
     const db = await database;
@@ -149,7 +152,7 @@ export async function reconcileBabyLocalData(currentBabyIds: string[]) {
         .filter((item) => !retained.has(item.payload.baby_id))
         .map((item) => db.delete("pending", item.mutationId)),
       ...cacheKeys
-        .filter((key) => key.startsWith("records:") && !retained.has(key.slice(8)))
+        .filter((key) => key.startsWith("records:") && key.slice(8) !== selectedBabyId)
         .map((key) => db.delete("cache", key)),
     ]);
   } catch {
@@ -158,13 +161,16 @@ export async function reconcileBabyLocalData(currentBabyIds: string[]) {
 }
 
 export async function clearLocalData() {
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     (async () => {
       const db = await database;
       await Promise.all([db.clear("pending"), db.clear("cache"), db.clear("meta")]);
     })(),
     clearProfilePictureCache(),
   ]);
+  if (results.some((result) => result.status === "rejected")) {
+    throw new Error("Browser storage cleanup is incomplete.");
+  }
 }
 
 export async function clearBabyLocalData(babyId: string) {

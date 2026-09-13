@@ -409,6 +409,7 @@ test("remote deletion of the last Baby clears selection and picture residue", as
 test("remote Baby replacement clears a PiyoLog preview before it can be confirmed", async ({
   page,
 }) => {
+  test.setTimeout(45_000);
   await page.goto("/settings");
   await page.getByLabel("Text export").setInputFiles({
     name: "mila-private.txt",
@@ -423,7 +424,7 @@ test("remote Baby replacement clears a PiyoLog preview before it can be confirme
       .simulateRemoteBabyDeletion();
   });
 
-  await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 7_000 });
+  await expect(page.getByLabel("Selected Baby")).toHaveValue(secondBabyId, { timeout: 12_000 });
   await expect(page.getByRole("button", { name: "Confirm import for Mila" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Preview import" })).toBeDisabled();
 });

@@ -136,6 +136,7 @@ def install_verified_snapshot(snapshot_path: Path, database_path: Path) -> None:
             target.execute("PRAGMA journal_mode = DELETE")
         os.chmod(temporary, 0o600)
         verify_database(temporary)
+        prepare_database_for_replacement(database_path)
         for suffix in DATABASE_SIDECAR_SUFFIXES:
             Path(f"{database_path}{suffix}").unlink(missing_ok=True)
         os.replace(temporary, database_path)
@@ -144,6 +145,20 @@ def install_verified_snapshot(snapshot_path: Path, database_path: Path) -> None:
         for suffix in DATABASE_SIDECAR_SUFFIXES:
             Path(f"{temporary}{suffix}").unlink(missing_ok=True)
     verify_database(database_path)
+
+
+def prepare_database_for_replacement(database_path: Path) -> None:
+    """Make the live main file self-contained before its obsolete sidecars are removed."""
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("PRAGMA locking_mode=EXCLUSIVE")
+        busy, _remaining, _checkpointed = connection.execute(
+            "PRAGMA wal_checkpoint(TRUNCATE)"
+        ).fetchone()
+        if busy:
+            raise RuntimeError("Live database is busy; stop the API before restoring.")
+        journal_mode = connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+        if str(journal_mode).lower() != "delete":
+            raise RuntimeError("Live database could not enter restore-safe journal mode.")
 
 
 def restore_database(snapshot_path: Path, database_path: Path) -> Path:

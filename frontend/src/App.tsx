@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Baby as BabyIcon, History, ImageOff, LogOut, Plus, Settings, Sparkles, Upload } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
@@ -40,14 +40,54 @@ function AuthGate() {
 }
 
 function SessionGate() {
-  const setup = useQuery({ queryKey: ["setup"], queryFn: api.setupStatus, retry: false });
-  const me = useQuery({ queryKey: ["me"], queryFn: api.me, retry: false });
+  const queryClient = useQueryClient();
+  const [cleanupRequired, setCleanupRequired] = useState(false);
+  const setup = useQuery({
+    queryKey: ["setup"],
+    queryFn: api.setupStatus,
+    retry: false,
+    refetchInterval: 5_000,
+  });
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: api.me,
+    retry: false,
+    refetchInterval: 5_000,
+  });
+  const sessionInvalid = setup.data?.setup_required === true
+    || (me.error instanceof ApiError && me.error.status === 401);
+
+  useEffect(() => {
+    if (sessionInvalid) setCleanupRequired(true);
+  }, [sessionInvalid]);
+
+  useEffect(() => {
+    if (!cleanupRequired) return;
+    const cleanup = () => {
+      void clearUnauthenticatedClientData(queryClient)
+        .then(() => setCleanupRequired(false))
+        .catch(() => undefined);
+    };
+    cleanup();
+    const retry = window.setInterval(cleanup, 5_000);
+    return () => window.clearInterval(retry);
+  }, [cleanupRequired, queryClient]);
 
   if (setup.isLoading || me.isLoading) return <LoadingScreen />;
   if (setup.data?.setup_required) return <SetupScreen />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginScreen />;
   if (me.isError || !me.data) return <ErrorScreen />;
   return <HouseholdApp caregiver={me.data} />;
+}
+
+export async function clearUnauthenticatedClientData(queryClient: QueryClient) {
+  localStorage.removeItem("selectedBaby");
+  queryClient.removeQueries({
+    predicate: ({ queryKey }) => !["compatibility", "setup", "me"].includes(
+      String(queryKey[0]),
+    ),
+  });
+  await clearLocalData();
 }
 
 function LoadingScreen() {
@@ -89,7 +129,7 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: async () => {
-      await clearLocalData();
+      await clearLocalData().catch(() => undefined);
       localStorage.removeItem("selectedBaby");
       queryClient.clear();
       window.location.assign("/");
@@ -115,14 +155,14 @@ function HouseholdApp({ caregiver }: { caregiver: Caregiver }) {
     }
   }, [babies.data, babies.dataUpdatedAt, selectedId]);
 
+  const selectedBaby = babies.data?.find((item) => item.id === selectedId) ?? babies.data?.[0];
   useEffect(() => {
     if (!babies.data) return;
     const currentBabyIds = babies.data.map((baby) => baby.id);
     removeMissingBabyQueries(queryClient, currentBabyIds);
-    void reconcileBabyLocalData(currentBabyIds);
-  }, [babies.data, babies.dataUpdatedAt, queryClient]);
+    void reconcileBabyLocalData(currentBabyIds, selectedBaby?.id ?? null);
+  }, [babies.data, babies.dataUpdatedAt, queryClient, selectedBaby?.id]);
 
-  const selectedBaby = babies.data?.find((item) => item.id === selectedId) ?? babies.data?.[0];
   useEffect(() => {
     if (!babies.data) return;
     const pictureUrl = selectedBaby?.has_profile_picture
