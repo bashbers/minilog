@@ -51,7 +51,7 @@ curl -fsSI http://127.0.0.1:8080/
 
 Confirm both services are healthy, only the web port is published, the API is reachable only through `/api`, security headers are present, no setup token appears in logs, and no runtime request leaves the configured origin. Preserve the production data volume during verification.
 
-Run `frontend/scripts/compose-smoke.sh http://127.0.0.1:8080` to check health, headers, and a request body above nginx's former 1 MiB default. To verify proxy-log privacy with a harmless sentinel, stop `api`, request `/api/v1/health/ready?sentinel=MINILOG_LOG_PRIVACY_TEST`, confirm the sentinel is absent from `docker compose logs web`, then start `api` again. Never use real private data as a sentinel.
+Run `frontend/scripts/compose-smoke.sh <configured-public-origin>` to check health, headers, and a request body above nginx's former 1 MiB default. Omitting the argument uses the example default `http://localhost:8080`. To verify proxy-log privacy with a harmless sentinel, stop `api`, request `/api/v1/health/ready?sentinel=MINILOG_LOG_PRIVACY_TEST`, confirm the sentinel is absent from `docker compose logs web`, then start `api` again. Never use real private data as a sentinel.
 
 ## Human recovery drill
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-origin=${1:-http://127.0.0.1:8080}
+origin=${1:-http://localhost:8080}
 
 curl -fsS "$origin/api/v1/health/live" >/dev/null
 curl -fsS "$origin/api/v1/health/ready" >/dev/null

@@ -215,6 +215,29 @@ def test_failed_start_stays_in_maintenance_without_restarting_migration(monkeypa
     exec_process.assert_not_called()
 
 
+def test_invalid_startup_configuration_never_prints_the_setup_token() -> None:
+    secret = "S3CR3T"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "MINILOG_SETUP_TOKEN": secret,
+            "MINILOG_PUBLIC_ORIGIN": "http://localhost:8080",
+            "MINILOG_SECURE_COOKIES": "false",
+        }
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", "from minilog.config import Settings; Settings(_env_file=None)"],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert secret not in result.stdout
+    assert secret not in result.stderr
+
+
 def test_private_deletion_fails_before_commit_when_a_reader_prevents_exclusivity() -> None:
     with SessionLocal() as setup:
         baby = Baby(display_name="Private marker", birth_date="2026-01-01")

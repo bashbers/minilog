@@ -225,7 +225,7 @@ The production web response should include Content Security Policy, Permissions 
 ```sh
 curl -fsSI http://127.0.0.1:8080/
 curl -fsS http://127.0.0.1:8080/api/v1/health/ready
-frontend/scripts/compose-smoke.sh http://127.0.0.1:8080
+frontend/scripts/compose-smoke.sh <configured-public-origin>
 ```
 
 The readiness response contains no Household data. API access logs are disabled at the server; Minilog emits only allowlisted structured request and lifecycle fields described in [SECURITY.md](./SECURITY.md).

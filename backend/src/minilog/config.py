@@ -5,7 +5,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MINILOG_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="MINILOG_",
+        env_file=".env",
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
 
     app_name: str = "Minilog"
     database_url: str = "sqlite:///./data/minilog.db"

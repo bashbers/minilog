@@ -49,7 +49,7 @@ Run the API and PWA in separate terminals:
 
 ```sh
 cd backend
-MINILOG_SETUP_TOKEN=development-setup-token-change-me ../.venv/bin/uvicorn minilog.main:app --reload
+MINILOG_PUBLIC_ORIGIN=http://localhost:5173 MINILOG_SETUP_TOKEN=development-setup-token-change-me ../.venv/bin/uvicorn minilog.main:app --reload
 ```
 
 ```sh
