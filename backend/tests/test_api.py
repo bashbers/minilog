@@ -9,11 +9,14 @@ from uuid import uuid4
 import httpx2 as httpx
 import pytest
 from conftest import TEST_DATABASE
+from fastapi import HTTPException
 from PIL import Image
 from sqlalchemy import func, select, text
 
-from minilog.api import health
+from minilog.account_recovery import reset_owner_password
+from minilog.api import auth, health
 from minilog.config import Settings
+from minilog.constants import SCHEMA_REVISION
 from minilog.database import Base, SessionLocal, engine, get_db
 from minilog.main import app
 from minilog.models import (
@@ -109,6 +112,67 @@ def test_setup_session_and_owner_only_baby_creation() -> None:
     asyncio.run(with_client(scenario))
 
 
+def test_owner_recovery_resets_password_and_revokes_sessions() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        await setup_owner(client)
+        reset_owner_password("a different long passphrase")
+
+        assert (await client.get("/api/v1/sessions/current")).status_code == 401
+        old_password = await client.post(
+            "/api/v1/sessions",
+            json={"username": "owner", "password": "a long test passphrase"},
+        )
+        assert old_password.status_code == 401
+        recovered = await client.post(
+            "/api/v1/sessions",
+            json={"username": "owner", "password": "a different long passphrase"},
+        )
+        assert recovered.status_code == 200
+
+    asyncio.run(with_client(scenario))
+
+
+def test_owner_manages_household_and_multiple_baby_identities() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        first_baby_id = await create_baby(client, csrf)
+        household = await client.put(
+            "/api/v1/household",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "display_name": "Our family",
+                "time_zone": "Europe/Amsterdam",
+                "locale": "nl",
+                "clock_format": "24h",
+                "measurement_system": "metric",
+            },
+        )
+        assert household.status_code == 200, household.text
+        assert household.json()["display_name"] == "Our family"
+        assert household.json()["locale"] == "nl"
+
+        updated = await client.put(
+            f"/api/v1/babies/{first_baby_id}",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "display_name": "Mila updated",
+                "birth_date": "2026-01-01",
+                "due_date": "2025-12-28",
+            },
+        )
+        assert updated.status_code == 200, updated.text
+        second = await client.post(
+            "/api/v1/babies",
+            headers={"X-CSRF-Token": csrf},
+            json={"display_name": "Noor", "birth_date": "2026-02-01"},
+        )
+        assert second.status_code == 201, second.text
+        babies = (await client.get("/api/v1/babies")).json()
+        assert [baby["display_name"] for baby in babies] == ["Mila updated", "Noor"]
+
+    asyncio.run(with_client(scenario))
+
+
 def test_public_origin_rejects_alternate_hosts_and_origins() -> None:
     async def scenario() -> None:
         transport = httpx.ASGITransport(app=app)
@@ -145,7 +209,7 @@ def test_compatibility_endpoint_refuses_an_unexpected_schema() -> None:
         assert compatible.json() == {
             "status": "ready",
             "api_contract_version": 1,
-            "schema_revision": "47ccc6557a5e",
+                "schema_revision": SCHEMA_REVISION,
         }
 
         with SessionLocal() as db:
@@ -603,6 +667,34 @@ def test_active_sleep_is_unique_per_baby() -> None:
     asyncio.run(with_client(scenario))
 
 
+def test_active_pumping_is_unique_per_caregiver_across_babies() -> None:
+    async def scenario(client: httpx.AsyncClient) -> None:
+        csrf = await setup_owner(client)
+        first_baby_id = await create_baby(client, csrf)
+        second = await client.post(
+            "/api/v1/babies",
+            headers={"X-CSRF-Token": csrf},
+            json={"display_name": "Noor", "birth_date": "2026-02-01"},
+        )
+        assert second.status_code == 201
+
+        first = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json=record_payload(first_baby_id, "pumping"),
+        )
+        conflicting = await client.post(
+            "/api/v1/care-records",
+            headers={"X-CSRF-Token": csrf},
+            json=record_payload(second.json()["id"], "pumping"),
+        )
+        assert first.status_code == 201
+        assert conflicting.status_code == 409
+        assert conflicting.json()["detail"] == "active_record_exists"
+
+    asyncio.run(with_client(scenario))
+
+
 def test_profile_picture_is_normalized_to_webp() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf = await setup_owner(client)
@@ -1047,7 +1139,7 @@ Diary: BABY_PRIVATE_MARKER_7ED019 imported note
     asyncio.run(with_client(scenario))
 
 
-def test_login_failures_are_rate_limited_without_revealing_username() -> None:
+def test_login_failures_are_rate_limited_without_revealing_username(caplog) -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         await setup_owner(client)
         payload = {"username": "nonexistent-rate-limit-user", "password": "incorrect"}
@@ -1058,5 +1150,66 @@ def test_login_failures_are_rate_limited_without_revealing_username() -> None:
         limited = await client.post("/api/v1/sessions", json=payload)
         assert limited.status_code == 429
         assert limited.json()["detail"] == "try_again_later"
+        messages = "\n".join(record.getMessage() for record in caplog.records)
+        assert '"event":"authentication_failed"' in messages
+        assert '"event":"authentication_rate_limited"' in messages
+        assert payload["username"] not in messages
 
-    asyncio.run(with_client(scenario))
+    caplog.set_level(logging.INFO, logger="minilog.security")
+    auth._failed_logins.clear()
+    try:
+        asyncio.run(with_client(scenario))
+    finally:
+        auth._failed_logins.clear()
+
+
+def test_login_rate_limits_source_and_username_independently() -> None:
+    settings = Settings(
+        public_origin="http://test",
+        secure_cookies=False,
+        login_attempt_limit=3,
+        _env_file=None,
+    )
+    now = now_ms()
+    auth._failed_logins.clear()
+    try:
+        auth._failed_logins[("username", "owner")].extend([now, now, now])
+        with pytest.raises(HTTPException) as username_limited:
+            auth.enforce_login_rate_limit(
+                (("source", "source-b"), ("username", "owner")), settings
+            )
+        assert username_limited.value.status_code == 429
+
+        auth._failed_logins.clear()
+        auth._failed_logins[("source", "source-a")].extend([now, now, now])
+        with pytest.raises(HTTPException) as source_limited:
+            auth.enforce_login_rate_limit(
+                (("source", "source-a"), ("username", "different-user")), settings
+            )
+        assert source_limited.value.status_code == 429
+    finally:
+        auth._failed_logins.clear()
+
+
+def test_unknown_username_still_verifies_a_password_hash(monkeypatch) -> None:
+    verified_hashes: list[str] = []
+
+    def record_verification(encoded: str, _password: str) -> bool:
+        verified_hashes.append(encoded)
+        return False
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        await setup_owner(client)
+        response = await client.post(
+            "/api/v1/sessions",
+            json={"username": "missing-user", "password": "incorrect"},
+        )
+        assert response.status_code == 401
+
+    auth._failed_logins.clear()
+    monkeypatch.setattr(auth, "verify_password", record_verification)
+    try:
+        asyncio.run(with_client(scenario))
+    finally:
+        auth._failed_logins.clear()
+    assert verified_hashes == [auth.DUMMY_PASSWORD_HASH]

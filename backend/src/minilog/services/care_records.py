@@ -204,7 +204,7 @@ def canonical_measurement(kind: str, value: Decimal, unit: str) -> tuple[str, st
 def ensure_active_slot(
     db: Session,
     payload: CareRecordCreate,
-    caregiver: Caregiver,
+    author_id: str,
     excluding_id: str | None = None,
 ) -> None:
     if payload.ended_at is not None:
@@ -216,13 +216,14 @@ def ensure_active_slot(
     }:
         return
     conditions = [
-        CareRecord.baby_id == str(payload.baby_id),
         CareRecord.record_type == payload.record_type,
         CareRecord.ended_at_utc.is_(None),
         CareRecord.deleted_at.is_(None),
     ]
     if payload.record_type is RecordType.PUMPING:
-        conditions.append(CareRecord.author_id == caregiver.id)
+        conditions.append(CareRecord.author_id == author_id)
+    else:
+        conditions.append(CareRecord.baby_id == str(payload.baby_id))
     if excluding_id:
         conditions.append(CareRecord.id != excluding_id)
     if db.scalar(select(CareRecord.id).where(*conditions).limit(1)):
@@ -456,7 +457,7 @@ def append_change(db: Session, record: CareRecord, operation: SyncOperation) -> 
 
 
 def create_record(db: Session, payload: CareRecordCreate, caregiver: Caregiver) -> CareRecord:
-    ensure_active_slot(db, payload, caregiver)
+    ensure_active_slot(db, payload, caregiver.id)
     record_id = str(payload.id) if payload.id else None
     if record_id and db.get(CareRecord, record_id):
         raise HTTPException(status_code=409, detail="record_id_exists")
@@ -501,7 +502,7 @@ def update_record(
         raise HTTPException(status_code=422, detail="record_type_cannot_change")
     if str(payload.baby_id) != record.baby_id:
         raise HTTPException(status_code=422, detail="baby_cannot_change")
-    ensure_active_slot(db, payload, caregiver, excluding_id=record.id)
+    ensure_active_slot(db, payload, record.author_id or caregiver.id, excluding_id=record.id)
     delete_detail(db, record)
     record.occurred_at_utc = datetime_to_ms(payload.occurred_at)
     record.ended_at_utc = datetime_to_ms(payload.ended_at) if payload.ended_at else None

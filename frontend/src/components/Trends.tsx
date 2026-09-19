@@ -23,13 +23,13 @@ function TrendBars({
 }: {
   label: string;
   dateKeys: string[];
-  values: number[];
+  values: Array<number | null>;
   days: TrendDays;
 }) {
-  const maximum = Math.max(...values, 1);
+  const maximum = Math.max(...values.filter((value): value is number => value !== null), 1);
   return <div className={`bar-chart days-${days}`} aria-label={`${label} for ${rangeLabel(days).toLowerCase()}`}>
-    {values.map((value, index) => <div className="bar-slot" key={dateKeys[index]} title={`${dateKeys[index]}: ${value}`}>
-      <div className="bar" style={{ height: `${Math.max(4, (value / maximum) * 100)}%` }} />
+    {values.map((value, index) => <div className="bar-slot" key={dateKeys[index]} title={`${dateKeys[index]}: ${value === null ? "no entry" : value}`}>
+      {value !== null && <div className="bar" style={{ height: `${Math.max(4, (value / maximum) * 100)}%` }} />}
       <span>{days === 30 && index % 5 !== 0 && index !== 29 ? "" : formatDateKey(dateKeys[index], days === 1 ? { weekday: "short" } : { weekday: "narrow" })}</span>
     </div>)}
   </div>;
@@ -52,7 +52,7 @@ export function Trends({ records, timeZone, days, onDaysChange }: TrendsProps) {
     const values = dateKeys.map((dateKey) => {
       const record = matching.find((item) =>
         dateKeyInTimeZone(item.occurred_at, timeZone) === dateKey);
-      return record ? Number(record.details.entered_value) : 0;
+      return record ? Number(record.details.entered_value) : null;
     });
     return { series, kind, unit, values, latest: matching[0] };
   });

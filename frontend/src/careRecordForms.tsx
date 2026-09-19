@@ -26,6 +26,7 @@ import type {
   TimelineRecord,
 } from "./api/types";
 import {
+  defaultMeasurementUnit,
   durationMinutes,
   localDateTimeValue,
   localOffsetMinutes,
@@ -361,12 +362,12 @@ export const careRecordRegistry = {
     summaries: [],
     createFields: () => <>
       <label>Measurement<select name="measurementKind"><option value="weight">Weight</option><option value="height">Height</option><option value="temperature">Temperature</option></select></label>
-      <div className="field-row"><label>Value<input name="measurementValue" type="number" step="any" required inputMode="decimal" /></label><label>Unit<input name="measurementUnit" placeholder="kg" /></label></div>
+      <div className="field-row"><label>Value<input name="measurementValue" type="number" step="any" required inputMode="decimal" /></label><label>Unit<input name="measurementUnit" placeholder="Uses household default" /></label></div>
     </>,
     editFields: (record) => <><label>Measurement<select name="measurementKind" defaultValue={record.details.kind}><option value="weight">Weight</option><option value="height">Height</option><option value="temperature">Temperature</option></select></label><div className="field-row"><label>Value<input name="measurementValue" type="number" step="any" required defaultValue={formValue(record.details.entered_value)} /></label><label>Unit<input name="measurementUnit" required defaultValue={record.details.entered_unit} /></label></div></>,
     createPayload: (common, values) => {
       const kind = String(values.get("measurementKind")) as "weight" | "height" | "temperature";
-      const defaultUnit = { weight: "kg", height: "cm", temperature: "celsius" }[kind];
+      const defaultUnit = defaultMeasurementUnit(kind);
       return {
         ...common,
         record_type: "measurement",

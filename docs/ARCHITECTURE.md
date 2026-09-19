@@ -29,7 +29,7 @@ Only the frontend port is published. The API and persistent volume are private t
 - A service worker for installation, local application assets, and controlled updates
 - TypeScript request and response types generated from FastAPI's OpenAPI document
 
-The frontend is feature-oriented rather than organized by generic component type. Care-record types register their form, renderer, summary contribution, and API schema mapping through one explicit registry. Shared primitives provide dark-first controls, bottom sheets, touch targets, charts, conflict messages, and accessible form behaviour.
+Route-level care screens live under `features/care`; `App` owns session gating, Baby selection, and the application shell. Reusable visual units live under `components`. Care-record types register their form, renderer, summary contribution, and API schema mapping through one explicit registry. Shared primitives provide dark-first controls, bottom sheets, touch targets, charts, conflict messages, and accessible form behaviour.
 
 ### Backend
 
@@ -39,14 +39,15 @@ The frontend is feature-oriented rather than organized by generic component type
 - SQLite configured with foreign keys, WAL, and a busy timeout
 - One Uvicorn worker
 
-Backend packages are separated into:
+Backend modules use a deliberately small layered structure:
 
-- `domain`: terminology, value rules, and type-specific invariants
-- `application`: commands, queries, permissions, synchronization, imports, and exports
-- `api`: HTTP routing, authentication, validation, and error mapping
-- `persistence`: SQLAlchemy mappings, repositories, migrations, and backup operations
+- `models` and `schemas` define relational persistence and the HTTP/domain vocabulary;
+- `services` own multi-step care-record, synchronization, import/export, and destructive privacy operations;
+- `api` owns routing, authorization dependencies, and simple resource CRUD transactions; shared
+  services may raise the same stable HTTP errors used by those routes to avoid duplicate adapters; and
+- `cli`, migrations, and database helpers own offline lifecycle and recovery operations.
 
-API handlers do not contain SQLAlchemy queries or domain rules. Transactions are owned by application commands.
+Complex invariants and privacy-sensitive transactions belong in services. Keeping straightforward single-resource CRUD in a route avoids repository and command wrappers that would only delegate.
 
 ## HTTP contract
 
@@ -75,7 +76,7 @@ The Owner issues one-use, 24-hour invitation codes. Caregivers choose a local us
 
 Authentication uses random, opaque server sessions. Only a hash is stored in SQLite; the browser receives a `Secure`, `HttpOnly`, `SameSite` cookie. State-changing requests require CSRF protection. Sessions have a 30-day sliding lifetime, are visible as devices, and can be revoked individually. A password change revokes every other session.
 
-Permissions are enforced in the application layer for every command and query, never only by hiding frontend controls.
+Permissions are enforced at the API dependency boundary for every command and query, with privacy-sensitive destructive services repeating the relevant invariants. Frontend visibility is never the authorization boundary.
 
 ## Care-record extensibility
 

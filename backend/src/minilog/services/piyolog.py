@@ -28,6 +28,18 @@ DATE_PATTERNS = (
     re.compile(r"^(?P<y>20\d{2})年(?P<m>\d{1,2})月(?P<d>\d{1,2})日(?:.*)?$"),
 )
 ENGLISH_DATE_PATTERNS = ("%A, %B %d, %Y", "%B %d, %Y", "%a, %b %d, %Y", "%b %d, %Y")
+DUTCH_DATE_PATTERN = re.compile(
+    r"^(?:ma|di|wo|do|vr|za|zo)\s+(?P<d>\d{1,2})\s+"
+    r"(?P<m>jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec)\s+(?P<y>20\d{2})$",
+    re.I,
+)
+DUTCH_MONTHS = {
+    month: number
+    for number, month in enumerate(
+        ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
+        1,
+    )
+}
 TIME_LINE = re.compile(r"^(?P<h>\d{1,2}):(?P<m>\d{2})\s+(?P<body>.+?)\s*$")
 JAPANESE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 NUMBER_UNIT = re.compile(
@@ -88,6 +100,27 @@ class ParsedPiyoLog:
         return unknown + self.unplaced_lines
 
 
+def reconciliation_totals(parsed: ParsedPiyoLog) -> dict[str, int]:
+    totals: Counter[str] = Counter()
+    for item in parsed.entries:
+        totals[f"{item.kind}_records"] += 1
+        if item.kind == "bottle_feeding":
+            totals["bottle_feeding_ml"] += int(item.values.get("consumed_ml", 0))
+        elif item.kind == "breastfeeding":
+            totals["breastfeeding_left_minutes"] += int(item.values.get("left_minutes", 0))
+            totals["breastfeeding_right_minutes"] += int(item.values.get("right_minutes", 0))
+        elif item.kind == "sleep" and item.ended_local_at:
+            totals["sleep_minutes"] += int(
+                (item.ended_local_at - item.local_at).total_seconds() // 60
+            )
+        elif item.kind == "diaper_change":
+            totals["wet_diapers"] += int(bool(item.values.get("is_wet")))
+            totals["dirty_diapers"] += int(bool(item.values.get("is_dirty")))
+        elif item.kind == "pumping" and item.values.get("expressed_ml") is not None:
+            totals["pumping_ml"] += int(item.values["expressed_ml"])
+    return dict(sorted(totals.items()))
+
+
 def decode_source(source: bytes) -> str:
     for encoding in ("utf-8-sig", "utf-16", "shift_jis"):
         try:
@@ -105,6 +138,11 @@ def parse_date_header(line: str) -> date | None:
                 return date(int(match["y"]), int(match["m"]), int(match["d"]))
             except ValueError:
                 return None
+    if match := DUTCH_DATE_PATTERN.match(line):
+        try:
+            return date(int(match["y"]), DUTCH_MONTHS[match["m"].casefold()], int(match["d"]))
+        except ValueError:
+            return None
     normalized = re.sub(
         r"\s+",
         " ",

@@ -15,6 +15,14 @@ class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def validated_time_zone(value: str) -> str:
+    try:
+        ZoneInfo(value)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("time zone must be an IANA time zone") from exc
+    return value
+
+
 class SetupStatus(APIModel):
     setup_required: bool
 
@@ -30,11 +38,7 @@ class SetupRequest(APIModel):
     @field_validator("time_zone")
     @classmethod
     def valid_time_zone(cls, value: str) -> str:
-        try:
-            ZoneInfo(value)
-        except ZoneInfoNotFoundError as exc:
-            raise ValueError("time zone must be an IANA time zone") from exc
-        return value
+        return validated_time_zone(value)
 
 
 class LoginRequest(APIModel):
@@ -124,12 +128,52 @@ class HouseholdOut(APIModel):
     locale: str
     clock_format: ClockFormat
     measurement_system: MeasurementSystem
+    revision: int = Field(ge=1)
+
+
+class HouseholdUpdate(APIModel):
+    expected_revision: int = Field(ge=1)
+    display_name: str = Field(min_length=1, max_length=120)
+    time_zone: str = Field(min_length=1, max_length=64)
+    locale: str = Field(min_length=2, max_length=32)
+    clock_format: ClockFormat
+    measurement_system: MeasurementSystem
+
+    @field_validator("display_name")
+    @classmethod
+    def nonblank_display_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("display name must not be blank")
+        return value
+
+    @field_validator("time_zone")
+    @classmethod
+    def valid_time_zone(cls, value: str) -> str:
+        return validated_time_zone(value)
+
+
+class HouseholdStaleRevisionDetail(APIModel):
+    code: Literal["stale_revision"] = "stale_revision"
+    current: HouseholdOut
+
+
+class HouseholdConflictResponse(APIModel):
+    detail: HouseholdStaleRevisionDetail | str
 
 
 class BabyCreate(APIModel):
     display_name: str = Field(min_length=1, max_length=120)
     birth_date: date
     due_date: date | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def nonblank_display_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("display name must not be blank")
+        return value
 
 
 class BabyUpdate(BabyCreate):
@@ -511,6 +555,7 @@ class PiyoLogPreview(APIModel):
     date_from: date | None = None
     date_to: date | None = None
     counts: dict[str, int]
+    reconciliation_totals: dict[str, int] = Field(default_factory=dict)
     conflicts: dict[str, int] = Field(default_factory=dict)
     unknown_lines: list[dict[str, object]]
     warnings: list[str]

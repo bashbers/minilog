@@ -74,7 +74,7 @@ Every API query is scoped to the singleton Household and, where applicable, an e
 
 Production sends a Content Security Policy that permits only bundled same-origin resources and the necessary inline-free application behaviours. It also uses appropriate MIME sniffing, framing, referrer, and permissions policies.
 
-The default Compose publication is local HTTP and is not advertised as secure for untrusted networks. Documentation shows how to place Minilog behind an HTTPS reverse proxy or access it through a private VPN. The application must not trust forwarded headers unless its configured proxy boundary is explicit.
+The default Compose publication is local HTTP and is not advertised as secure for untrusted networks. Documentation shows how to place Minilog behind an HTTPS reverse proxy or access it through a private VPN. The API ignores standard forwarded headers. Its private Compose nginx peer overwrites `X-Minilog-Client-IP` with the direct client address solely for source login throttling; deployments must not publish the API container directly.
 
 ## Logging and diagnostics
 

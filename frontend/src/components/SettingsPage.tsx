@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import {
   ArrowDown,
   ArrowUp,
+  Baby as BabyIcon,
   Download,
   FileUp,
+  Home,
   Link as LinkIcon,
   ListChecks,
   ShieldCheck,
@@ -42,6 +44,8 @@ export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Careg
         <div><p className="eyebrow">Private household</p><h1>Settings</h1></div>
       </div>
       <div className="settings-grid">
+        {owner && <HouseholdCard />}
+        {owner && <BabyCard baby={baby} />}
         <QuickActionsCard />
         <DeviceCard />
         {owner && <CaregiverCard currentCaregiverId={caregiver.id} />}
@@ -51,6 +55,101 @@ export function SettingsPage({ baby, caregiver }: { baby: Baby; caregiver: Careg
       </div>
     </main>
   );
+}
+
+function HouseholdCard() {
+  const queryClient = useQueryClient();
+  const household = useQuery({ queryKey: ["household"], queryFn: api.household });
+  const [draft, setDraft] = useState({
+    display_name: "",
+    time_zone: "",
+    locale: "en",
+    clock_format: "24h" as "12h" | "24h",
+    measurement_system: "metric" as "metric" | "imperial",
+  });
+  useEffect(() => {
+    if (household.data) setDraft({
+      display_name: household.data.display_name,
+      time_zone: household.data.time_zone,
+      locale: household.data.locale,
+      clock_format: household.data.clock_format,
+      measurement_system: household.data.measurement_system,
+    });
+  }, [household.data]);
+  const save = useMutation({
+    mutationFn: () => api.updateHousehold({
+      ...draft,
+      expected_revision: household.data?.revision ?? 1,
+    }),
+    onSuccess: (updated) => queryClient.setQueryData(["household"], updated),
+    onError: () => queryClient.invalidateQueries({ queryKey: ["household"] }),
+  });
+  return <section className="settings-card">
+    <div className="card-title"><Home /><div><h2>Household</h2><p>Formatting and local time preferences.</p></div></div>
+    <label>Name<input required value={draft.display_name} onChange={(event) => setDraft({ ...draft, display_name: event.target.value })} /></label>
+    <label>Time zone<input required value={draft.time_zone} onChange={(event) => setDraft({ ...draft, time_zone: event.target.value })} /></label>
+    <div className="field-row">
+      <label>Clock<select value={draft.clock_format} onChange={(event) => setDraft({ ...draft, clock_format: event.target.value as "12h" | "24h" })}><option value="24h">24 hour</option><option value="12h">12 hour</option></select></label>
+      <label>Measurements<select value={draft.measurement_system} onChange={(event) => setDraft({ ...draft, measurement_system: event.target.value as "metric" | "imperial" })}><option value="metric">Metric</option><option value="imperial">Imperial</option></select></label>
+    </div>
+    <label>Locale<input required value={draft.locale} onChange={(event) => setDraft({ ...draft, locale: event.target.value })} /></label>
+    {save.error instanceof ApiError && save.error.status === 409
+      ? <p className="error" role="alert">Household settings changed on another device. The latest settings were loaded; review them and try again.</p>
+      : save.isError && <p className="error" role="alert">Could not save household settings.</p>}
+    {save.isSuccess && <p className="save-confirmation" role="status">Household settings saved.</p>}
+    <button className="primary" disabled={!draft.display_name.trim() || !draft.time_zone.trim() || save.isPending} onClick={() => save.mutate()}>Save household</button>
+  </section>;
+}
+
+function BabyCard({ baby }: { baby: Baby }) {
+  const queryClient = useQueryClient();
+  const [edit, setEdit] = useState({
+    display_name: baby.display_name,
+    birth_date: baby.birth_date,
+    due_date: baby.due_date ?? "",
+  });
+  const [addition, setAddition] = useState({ display_name: "", birth_date: "", due_date: "" });
+  useEffect(() => setEdit({
+    display_name: baby.display_name,
+    birth_date: baby.birth_date,
+    due_date: baby.due_date ?? "",
+  }), [baby]);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["babies"] });
+  const update = useMutation({
+    mutationFn: () => api.updateBaby(baby.id, {
+      ...edit,
+      due_date: edit.due_date || null,
+    }),
+    onSuccess: refresh,
+  });
+  const create = useMutation({
+    mutationFn: () => api.createBaby({
+      ...addition,
+      due_date: addition.due_date || null,
+    }),
+    onSuccess: async () => {
+      setAddition({ display_name: "", birth_date: "", due_date: "" });
+      await refresh();
+    },
+  });
+  return <section className="settings-card span-two">
+    <div className="card-title"><BabyIcon /><div><h2>Babies</h2><p>Edit the selected Baby or add another profile.</p></div></div>
+    <div className="field-row">
+      <label>Name<input required value={edit.display_name} onChange={(event) => setEdit({ ...edit, display_name: event.target.value })} /></label>
+      <label>Birth date<input required type="date" value={edit.birth_date} onChange={(event) => setEdit({ ...edit, birth_date: event.target.value })} /></label>
+      <label>Due date<input type="date" value={edit.due_date} onChange={(event) => setEdit({ ...edit, due_date: event.target.value })} /></label>
+    </div>
+    {(update.isError || create.isError) && <p className="error" role="alert">Could not save Baby details.</p>}
+    {update.isSuccess && <p className="save-confirmation" role="status">Baby details saved.</p>}
+    <button className="primary" disabled={!edit.display_name.trim() || !edit.birth_date || update.isPending} onClick={() => update.mutate()}>Save {baby.display_name}</button>
+    <h3>Add another Baby</h3>
+    <div className="field-row">
+      <label>Name<input required value={addition.display_name} onChange={(event) => setAddition({ ...addition, display_name: event.target.value })} /></label>
+      <label>Birth date<input required type="date" value={addition.birth_date} onChange={(event) => setAddition({ ...addition, birth_date: event.target.value })} /></label>
+      <label>Due date<input type="date" value={addition.due_date} onChange={(event) => setAddition({ ...addition, due_date: event.target.value })} /></label>
+    </div>
+    <button className="secondary" disabled={!addition.display_name.trim() || !addition.birth_date || create.isPending} onClick={() => create.mutate()}>Add Baby</button>
+  </section>;
 }
 
 function QuickActionsCard() {
@@ -174,6 +273,10 @@ function ImportCard({ baby }: { baby: Baby }) {
       await queryClient.invalidateQueries({ queryKey: ["imports"] });
     },
   });
+  const deleteSource = useMutation({
+    mutationFn: api.deleteImportSource,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["imports"] }),
+  });
   const error = previewMutation.error ?? confirmMutation.error;
   return (
     <section className="settings-card span-two">
@@ -185,12 +288,16 @@ function ImportCard({ baby }: { baby: Baby }) {
       {preview && <div className="import-preview">
         <div className="list-row"><div><strong>{preview.date_from || "Unknown date"} → {preview.date_to || "Unknown date"}</strong><span>{preview.detected_locale === "ja" ? "Japanese" : "English"} export · SHA-256 checked</span></div></div>
         <div className="count-chips">{Object.entries(preview.counts).map(([kind, count]) => <span key={kind}>{kind.replaceAll("_", " ")} <strong>{count}</strong></span>)}</div>
+        <h3>Reconciliation totals</h3>
+        <div className="count-chips">{Object.entries(preview.reconciliation_totals ?? {}).map(([kind, total]) => <span key={kind}>{kind.replaceAll("_", " ")} <strong>{total}</strong></span>)}</div>
+        {preview.unknown_lines.length > 0 && <details><summary>{preview.unknown_lines.length} unknown line{preview.unknown_lines.length === 1 ? "" : "s"}</summary><ul>{preview.unknown_lines.map((line) => <li key={`${String(line.line)}-${String(line.text)}`}><strong>Line {String(line.line)}</strong>: {String(line.text)}{line.placed ? " (kept on the timeline)" : " (kept in the report)"}</li>)}</ul></details>}
         {preview.warnings.map((warning) => <p className="muted" key={warning}>{warning}</p>)}
         {(preview.conflicts?.locally_modified ?? 0) > 0 ? <label className="choice"><input type="checkbox" checked={replaceModified} onChange={(event) => setReplaceModified(event.target.checked)} /> Replace {preview.conflicts?.locally_modified ?? 0} locally corrected imported record{preview.conflicts?.locally_modified === 1 ? "" : "s"}</label> : null}
         {(preview.conflicts?.replaceable ?? 0) > 0 ? <p className="muted">{preview.conflicts?.replaceable ?? 0} unchanged record{preview.conflicts?.replaceable === 1 ? "" : "s"} from an earlier import will be safely replaced.</p> : null}
         {preview.duplicate_import_id ? <p className="error">This exact file was already imported.</p> : <button className="primary" disabled={confirmMutation.isPending} onClick={() => confirmMutation.mutate()}>Confirm import for {baby.display_name}</button>}
       </div>}
-      {imports.data?.length ? <p className="muted small-copy">{imports.data.length} confirmed import{imports.data.length === 1 ? "" : "s"} retained in the audit trail.</p> : null}
+      {imports.data?.length ? <div className="stack-list"><h3>Import history</h3>{imports.data.map((item) => <div className="list-row" key={item.id}><div><strong>{item.date_from || "Unknown date"} → {item.date_to || "Unknown date"}</strong><span>{Object.values(item.counts).reduce((sum, count) => sum + count, 0)} items · {item.source_retained ? "source retained" : "source deleted"}</span></div>{item.source_retained && <button className="secondary small" disabled={deleteSource.isPending} onClick={() => deleteSource.mutate(item.id)}>Delete source</button>}</div>)}</div> : null}
+      {deleteSource.isError && <p className="error" role="alert">Could not delete the retained source.</p>}
     </section>
   );
 }

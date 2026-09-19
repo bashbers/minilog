@@ -28,7 +28,12 @@ from minilog.schemas import (
     ms_to_datetime,
 )
 from minilog.services.care_records import append_change, create_record
-from minilog.services.piyolog import entry_to_payload, localize, parse_piyolog
+from minilog.services.piyolog import (
+    entry_to_payload,
+    localize,
+    parse_piyolog,
+    reconciliation_totals,
+)
 
 router = APIRouter(prefix="/imports/piyolog", tags=["PiyoLog import"])
 
@@ -79,8 +84,9 @@ def preview_response(
         date_from=min(dates) if dates else None,
         date_to=max(dates) if dates else None,
         counts=parsed.counts,
+        reconciliation_totals=reconciliation_totals(parsed),
         conflicts=conflicts or {},
-        unknown_lines=parsed.unknown_lines[:500],
+        unknown_lines=parsed.unknown_lines,
         warnings=parsed.warnings,
     )
 
@@ -175,6 +181,7 @@ async def confirm_import(
     dates = parsed.dates
     report = {
         "counts": parsed.counts,
+        "reconciliation_totals": reconciliation_totals(parsed),
         "warnings": parsed.warnings,
         "unknown_lines": parsed.unknown_lines,
         "conflicts": conflicts,

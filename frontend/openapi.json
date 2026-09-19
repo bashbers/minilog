@@ -378,6 +378,95 @@
           }
         }
       },
+      "put": {
+        "tags": [
+          "household"
+        ],
+        "summary": "Update Household",
+        "operationId": "update_household_api_v1_household_put",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "minilog_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Session"
+            }
+          },
+          {
+            "name": "minilog_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minilog Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HouseholdUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "household"
@@ -4431,6 +4520,43 @@
         ],
         "title": "HouseholdOut"
       },
+      "HouseholdUpdate": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "time_zone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Time Zone"
+          },
+          "locale": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Locale"
+          },
+          "clock_format": {
+            "$ref": "#/components/schemas/ClockFormat"
+          },
+          "measurement_system": {
+            "$ref": "#/components/schemas/MeasurementSystem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "time_zone",
+          "locale",
+          "clock_format",
+          "measurement_system"
+        ],
+        "title": "HouseholdUpdate"
+      },
       "ImportBatchOut": {
         "properties": {
           "id": {
@@ -5603,6 +5729,13 @@
             },
             "type": "object",
             "title": "Counts"
+          },
+          "reconciliation_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Reconciliation Totals"
           },
           "conflicts": {
             "additionalProperties": {

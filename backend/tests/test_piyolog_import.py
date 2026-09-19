@@ -79,6 +79,14 @@ def test_english_and_japanese_adapters_preserve_unknowns() -> None:
     assert japanese.counts["daily_note"] == 1
 
 
+def test_dutch_localized_month_export_dates() -> None:
+    parsed = parse_piyolog(b"di 1 sep 2026\n07:25   Pee\n")
+
+    assert len(parsed.entries) == 1
+    assert parsed.entries[0].local_at.isoformat() == "2026-09-01T07:25:00"
+    assert parsed.entries[0].kind == "diaper_change"
+
+
 def test_import_preview_confirm_and_exact_file_idempotency() -> None:
     async def scenario(client: httpx.AsyncClient) -> None:
         csrf, baby_id = await setup(client)

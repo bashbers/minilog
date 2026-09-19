@@ -62,3 +62,33 @@ test("charts entered measurement facts by kind and unit", () => {
   expect(screen.getByText("7.2")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Measurements" })).not.toBeInTheDocument();
 });
+
+test("does not render missing measurement days as zero observations", () => {
+  const time = new Date().toISOString();
+  const measurement: TimelineRecord = {
+    id: crypto.randomUUID(),
+    baby_id: crypto.randomUUID(),
+    record_type: "measurement",
+    occurred_at: time,
+    ended_at: null,
+    local_offset_minutes: 0,
+    note: null,
+    author_label: "Caregiver",
+    last_modified_by_label: "Caregiver",
+    created_at: time,
+    updated_at: time,
+    revision: 1,
+    details: {
+      kind: "weight",
+      canonical_value: "7.2",
+      canonical_unit: "kg",
+      entered_value: "7.2",
+      entered_unit: "kg",
+    },
+  };
+  render(<Trends records={[measurement]} timeZone="UTC" days={7} onDaysChange={() => undefined} />);
+
+  const chart = screen.getByLabelText("weight in kg for last 7 days");
+  expect(chart.querySelectorAll(".bar")).toHaveLength(1);
+  expect(chart.querySelectorAll('[title$="no entry"]')).toHaveLength(6);
+});

@@ -1,3 +1,5 @@
+import json
+import logging
 from collections import defaultdict, deque
 from typing import Annotated
 
@@ -27,21 +29,42 @@ from minilog.security import (
 
 router = APIRouter(tags=["authentication"])
 SettingsDep = Annotated[Settings, Depends(get_settings_dependency)]
-_failed_logins: dict[str, deque[int]] = defaultdict(deque)
+logger = logging.getLogger("minilog.security")
+_failed_logins: dict[tuple[str, str], deque[int]] = defaultdict(deque)
+DUMMY_PASSWORD_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$JFm8qSu2guXf6SRzIJlLig$"
+    "jl7KjHlkOgNMmaEutUPd8NAQvjdsLzpio6prONHaMig"
+)
 
 
-def login_rate_key(request: Request, username: str) -> str:
-    client = request.client.host if request.client else "unknown"
-    return f"{client}:{normalize_username(username)}"
+def login_rate_keys(request: Request, username: str) -> tuple[tuple[str, str], tuple[str, str]]:
+    client = request.headers.get("X-Minilog-Client-IP") or (
+        request.client.host if request.client else "unknown"
+    )
+    return ("source", client), ("username", normalize_username(username))
 
 
-def enforce_login_rate_limit(key: str, settings: Settings) -> None:
-    attempts = _failed_logins[key]
+def enforce_login_rate_limit(keys: tuple[tuple[str, str], ...], settings: Settings) -> None:
     cutoff = now_ms() - settings.login_attempt_window_seconds * 1000
-    while attempts and attempts[0] < cutoff:
-        attempts.popleft()
-    if len(attempts) >= settings.login_attempt_limit:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="try_again_later")
+    for key in keys:
+        attempts = _failed_logins[key]
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        if len(attempts) >= settings.login_attempt_limit:
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "authentication_rate_limited",
+                        "limit_dimension": key[0],
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="try_again_later",
+            )
 
 
 def set_session_cookies(
@@ -132,19 +155,28 @@ async def login(
     db: Database,
     settings: SettingsDep,
 ) -> SessionOut:
-    rate_key = login_rate_key(request, payload.username)
-    enforce_login_rate_limit(rate_key, settings)
+    rate_keys = login_rate_keys(request, payload.username)
+    enforce_login_rate_limit(rate_keys, settings)
     caregiver = db.scalar(
         select(Caregiver).where(
             Caregiver.username_normalized == normalize_username(payload.username),
             Caregiver.is_active.is_(True),
         )
     )
-    if caregiver is None or not verify_password(caregiver.password_hash, payload.password):
-        _failed_logins[rate_key].append(now_ms())
+    password_matches = verify_password(
+        caregiver.password_hash if caregiver is not None else DUMMY_PASSWORD_HASH,
+        payload.password,
+    )
+    if caregiver is None or not password_matches:
+        failed_at = now_ms()
+        for key in rate_keys:
+            _failed_logins[key].append(failed_at)
+        logger.warning('{"event":"authentication_failed","reason":"invalid_credentials"}')
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
 
-    _failed_logins.pop(rate_key, None)
+    # A valid account proves only that username. Source failures must age out naturally so an
+    # attacker cannot use one known credential to reset protection for password spraying.
+    _failed_logins.pop(rate_keys[1], None)
     auth_session, session_token, csrf_token = create_session(
         db, caregiver, settings, payload.device_name
     )

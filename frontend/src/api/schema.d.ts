@@ -117,7 +117,8 @@ export interface paths {
         };
         /** Get Household */
         get: operations["get_household_api_v1_household_get"];
-        put?: never;
+        /** Update Household */
+        put: operations["update_household_api_v1_household_put"];
         post?: never;
         /** Delete Household */
         delete: operations["delete_household_api_v1_household_delete"];
@@ -1016,6 +1017,17 @@ export interface components {
             clock_format: components["schemas"]["ClockFormat"];
             measurement_system: components["schemas"]["MeasurementSystem"];
         };
+        /** HouseholdUpdate */
+        HouseholdUpdate: {
+            /** Display Name */
+            display_name: string;
+            /** Time Zone */
+            time_zone: string;
+            /** Locale */
+            locale: string;
+            clock_format: components["schemas"]["ClockFormat"];
+            measurement_system: components["schemas"]["MeasurementSystem"];
+        };
         /** ImportBatchOut */
         ImportBatchOut: {
             /**
@@ -1468,6 +1480,10 @@ export interface components {
             date_to?: string | null;
             /** Counts */
             counts: {
+                [key: string]: number;
+            };
+            /** Reconciliation Totals */
+            reconciliation_totals?: {
                 [key: string]: number;
             };
             /** Conflicts */
@@ -2080,6 +2096,44 @@ export interface operations {
             };
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HouseholdOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_household_api_v1_household_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                minilog_session?: string | null;
+                minilog_csrf?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HouseholdUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

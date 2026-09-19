@@ -2,6 +2,7 @@ import type {
   Baby,
   BabyActiveStatus,
   BabyCreate,
+  BabyUpdate,
   CareRecord,
   CareRecordCreate,
   CareRecordPage,
@@ -21,6 +22,7 @@ import type {
   SetupStatus,
   SyncPage,
   Household,
+  HouseholdUpdate,
 } from "./types";
 
 export class ApiError extends Error {
@@ -139,6 +141,10 @@ export const api = {
   household: () => request<Household>("/household"),
   createBaby: (payload: BabyCreate) =>
     request<Baby>("/babies", { method: "POST", body: JSON.stringify(payload) }),
+  updateBaby: (babyId: string, payload: BabyUpdate) =>
+    request<Baby>(`/babies/${babyId}`, { method: "PUT", body: JSON.stringify(payload) }),
+  updateHousehold: (payload: HouseholdUpdate) =>
+    request<Household>("/household", { method: "PUT", body: JSON.stringify(payload) }),
   deleteBaby: (babyId: string, confirmation: string, exportAcknowledged: boolean) =>
     request<void>(`/babies/${babyId}`, {
       method: "DELETE",

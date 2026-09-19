@@ -12,6 +12,7 @@ os.environ["MINILOG_PUBLIC_ORIGIN"] = "http://test"
 from sqlalchemy import text  # noqa: E402
 
 from minilog import models as _models  # noqa: E402,F401
+from minilog.constants import SCHEMA_REVISION  # noqa: E402
 from minilog.database import Base, engine  # noqa: E402
 
 
@@ -25,7 +26,10 @@ def clean_database():
         connection.execute(
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
-        connection.execute(text("INSERT INTO alembic_version VALUES ('47ccc6557a5e')"))
+        connection.execute(
+            text("INSERT INTO alembic_version VALUES (:revision)"),
+            {"revision": SCHEMA_REVISION},
+        )
     yield
     Base.metadata.drop_all(engine)
     with engine.begin() as connection:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import json
 import logging
 import os
@@ -18,15 +17,12 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from alembic.config import Config
-from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
 from alembic import command
 from minilog.config import get_settings
 from minilog.constants import API_CONTRACT_VERSION, SCHEMA_REVISION
-from minilog.database import SessionLocal, database_file_lock
-from minilog.models import AuthSession, Caregiver, CaregiverRole, now_ms
-from minilog.security import hash_password
+from minilog.database import database_file_lock
 
 logger = logging.getLogger("minilog.startup")
 DATABASE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
@@ -448,34 +444,3 @@ def restore_export_main() -> None:
     with restore_source(args.archive, database_path) as archive:
         recovery = restore_minilog_export(archive, database_path)
     print(f"Export restored. Pre-restore recovery copy: {recovery}")
-
-
-def reset_owner_main() -> None:
-    parser = argparse.ArgumentParser(description="Reset the local Minilog Owner password.")
-    parser.parse_args()
-    first = getpass.getpass("New Owner password (minimum 12 characters): ")
-    second = getpass.getpass("Repeat new Owner password: ")
-    if first != second:
-        raise SystemExit("Passwords did not match.")
-    if len(first) < 12:
-        raise SystemExit("Password must be at least 12 characters.")
-    with SessionLocal() as db:
-        owner = db.scalar(
-            select(Caregiver).where(
-                Caregiver.role == CaregiverRole.OWNER,
-                Caregiver.is_active.is_(True),
-            )
-        )
-        if owner is None:
-            raise SystemExit("No active Owner exists.")
-        owner.password_hash = hash_password(first)
-        owner.updated_at = now_ms()
-        for auth_session in db.scalars(
-            select(AuthSession).where(
-                AuthSession.caregiver_id == owner.id,
-                AuthSession.revoked_at.is_(None),
-            )
-        ):
-            auth_session.revoked_at = now_ms()
-        db.commit()
-    print("Owner password reset; all existing sessions were revoked.")

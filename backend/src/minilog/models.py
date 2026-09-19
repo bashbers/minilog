@@ -80,6 +80,7 @@ class Household(Base):
     )
     created_at: Mapped[int] = mapped_column(Integer, default=now_ms)
     updated_at: Mapped[int] = mapped_column(Integer, default=now_ms, onupdate=now_ms)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class Caregiver(Base):
@@ -225,8 +226,7 @@ class CareRecord(Base):
             ),
         ),
         Index(
-            "uq_active_pumping_per_caregiver_baby",
-            "baby_id",
+            "uq_active_pumping_per_caregiver",
             "author_id",
             unique=True,
             sqlite_where=text(

@@ -2,12 +2,14 @@ import type { components } from "./schema";
 
 export type Baby = components["schemas"]["BabyOut"];
 export type BabyCreate = components["schemas"]["BabyCreate"];
+export type BabyUpdate = components["schemas"]["BabyUpdate"];
 export type BabyActiveStatus = components["schemas"]["BabyActiveStatus"];
 export type CompatibilityStatus = components["schemas"]["CompatibilityStatus"];
 export type Caregiver = components["schemas"]["CaregiverOut"];
 export type CareRecord = components["schemas"]["CareRecordOut"];
 export type CareRecordPage = components["schemas"]["CareRecordPage"];
 export type Household = components["schemas"]["HouseholdOut"];
+export type HouseholdUpdate = components["schemas"]["HouseholdUpdate"];
 export type LoginRequest = components["schemas"]["LoginRequest"];
 export type Session = components["schemas"]["SessionOut"];
 export type SetupRequest = components["schemas"]["SetupRequest"];
