@@ -76,8 +76,14 @@ def test_restore_source_streams_private_input_inside_the_data_directory(
         assert source.read_bytes() == private_bytes
         assert source.stat().st_mode & 0o777 == 0o600
         source_path = source
+        for suffix in cli.DATABASE_SIDECAR_SUFFIXES:
+            Path(f"{source}{suffix}").write_bytes(b"temporary private SQLite state")
 
     assert not source_path.exists()
+    assert not any(
+        Path(f"{source_path}{suffix}").exists()
+        for suffix in cli.DATABASE_SIDECAR_SUFFIXES
+    )
 
 
 def test_snapshot_install_removes_an_orphaned_rollback_journal(tmp_path) -> None:

@@ -402,6 +402,8 @@ def restore_source(argument: str, database_path: Path) -> Iterator[Path]:
         yield temporary
     finally:
         temporary.unlink(missing_ok=True)
+        for suffix in DATABASE_SIDECAR_SUFFIXES:
+            Path(f"{temporary}{suffix}").unlink(missing_ok=True)
 
 
 def backup_main() -> None:
