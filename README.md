@@ -1,3 +1,10 @@
+# Spec coding tryout
+
+This repository is fully spec-coded using Codex with little to no interaction beside the original prompt as a test to see how far spec-coding with requirements up front can be taken using Sol 5.6. Using Matt Pocock's grill-me I've defined requirements which can be found in docs/. Afterwards, an implementation loop was used to implement each phase accordingly with a seperate reviewer for both the requirements and the potential drift to keep the project aligned.
+
+
+
+
 # Minilog
 
 Minilog is a privacy-first, self-hosted baby-care log designed for fast, one-handed use on mobile devices. The installable React PWA talks only to its same-origin FastAPI service; the service is the sole owner of a concrete SQLAlchemy/SQLite database.
